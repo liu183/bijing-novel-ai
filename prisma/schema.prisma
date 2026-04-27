@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Novel {
+  id          String   @id @default(cuid())
+  title       String
+  genre       String   @default("未分类")
+  subgenre    String   @default("")
+  style       String   @default("爽文")
+  targetWords Int      @default(50000)
+  description String   @default("")
+  status      String   @default("draft") // draft, writing, completed, archived
+  currentStep Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps    NovelStep[]
+  chapters Chapter[]
+  messages ChatMessage[]
+
+  @@index([status])
+}
+
+model NovelStep {
+  id        String   @id @default(cuid())
+  novelId   String
+  stepNumber Int
+  title     String
+  content   String   @default("")
+  status    String   @default("pending") // pending, generating, completed, locked
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([novelId, stepNumber])
+  @@index([novelId])
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  novelId   String
+  number    Int
+  title     String   @default("")
+  content   String   @default("")
+  wordCount Int      @default(0)
+  status    String   @default("draft") // draft, writing, completed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([novelId, number])
+  @@index([novelId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  novelId   String
+  role      String   // user, assistant, system
+  content   String
+  stepRef   Int?     // which step this message is related to
+  createdAt DateTime @default(now())
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@index([novelId])
+  @@index([createdAt])
+}
