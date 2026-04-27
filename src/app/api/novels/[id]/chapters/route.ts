@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createAIService } from '@/lib/ai';
 
 export async function POST(
   request: NextRequest,
@@ -44,7 +44,7 @@ export async function POST(
       update: { status: 'writing' },
     });
 
-    const zai = await ZAI.create();
+    const ai = await createAIService();
     const systemPrompt = `你是一位专业的网文作家。请为小说《${novel.title}》（${novel.genre}/${novel.style}）创作第${chapterNumber}章。
 
 ## 故事提要
@@ -64,12 +64,11 @@ ${pacing ? `## 节奏参考\n${pacing}` : ''}
 - 直接输出小说正文，不要加任何解释说明
 - 用中文创作`;
 
-    const completion = await zai.chat.completions.create({
+    const completion = await ai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: systemPrompt },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: `请创作第${chapterNumber}章的完整正文。注意与前面章节的衔接。` },
       ],
-      thinking: { type: 'disabled' },
     });
 
     const content = completion.choices[0]?.message?.content || '';

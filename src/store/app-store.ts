@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { AgentRole } from '@/lib/agents';
+import { DEFAULT_MODEL_ID } from '@/lib/ai/models';
 
 export type ViewMode = 'dashboard' | 'workspace' | 'reader' | 'console';
 
@@ -116,68 +118,90 @@ interface AppState {
   clearAgentActivities: () => void;
   agentStatus: Record<string, 'idle' | 'thinking' | 'working' | 'done'>;
   setAgentStatus: (agentId: string, status: 'idle' | 'thinking' | 'working' | 'done') => void;
+
+  // Settings
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+  selectedModel: string | null;
+  setSelectedModel: (modelId: string | null) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  // View
-  viewMode: 'dashboard',
-  setViewMode: (mode) => set({ viewMode: mode }),
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      // View
+      viewMode: 'dashboard',
+      setViewMode: (mode) => set({ viewMode: mode }),
 
-  // Novels list
-  novels: [],
-  setNovels: (novels) => set({ novels }),
+      // Novels list
+      novels: [],
+      setNovels: (novels) => set({ novels }),
 
-  // Current novel
-  currentNovel: null,
-  setCurrentNovel: (novel) => set({ currentNovel: novel }),
+      // Current novel
+      currentNovel: null,
+      setCurrentNovel: (novel) => set({ currentNovel: novel }),
 
-  // Current step
-  currentStep: 1,
-  setCurrentStep: (step) => set({ currentStep: step }),
+      // Current step
+      currentStep: 1,
+      setCurrentStep: (step) => set({ currentStep: step }),
 
-  // UI states
-  isGenerating: false,
-  setIsGenerating: (generating) => set({ isGenerating: generating }),
-  isChatLoading: false,
-  setIsChatLoading: (loading) => set({ isChatLoading: loading }),
-  isChapterGenerating: false,
-  setIsChapterGenerating: (generating) => set({ isChapterGenerating: generating }),
+      // UI states
+      isGenerating: false,
+      setIsGenerating: (generating) => set({ isGenerating: generating }),
+      isChatLoading: false,
+      setIsChatLoading: (loading) => set({ isChatLoading: loading }),
+      isChapterGenerating: false,
+      setIsChapterGenerating: (generating) => set({ isChapterGenerating: generating }),
 
-  // Chat messages
-  chatMessages: [],
-  setChatMessages: (messages) => set({ chatMessages: messages }),
-  addChatMessage: (message) =>
-    set((state) => ({ chatMessages: [...state.chatMessages, message] })),
+      // Chat messages
+      chatMessages: [],
+      setChatMessages: (messages) => set({ chatMessages: messages }),
+      addChatMessage: (message) =>
+        set((state) => ({ chatMessages: [...state.chatMessages, message] })),
 
-  // Sidebar
-  sidebarOpen: true,
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      // Sidebar
+      sidebarOpen: true,
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-  // Create novel dialog
-  createDialogOpen: false,
-  setCreateDialogOpen: (open) => set({ createDialogOpen: open }),
+      // Create novel dialog
+      createDialogOpen: false,
+      setCreateDialogOpen: (open) => set({ createDialogOpen: open }),
 
-  // Step generation dialog
-  generateDialogOpen: false,
-  setGenerateDialogOpen: (open) => set({ generateDialogOpen: open }),
-  generateStepNumber: 1,
-  setGenerateStepNumber: (step) => set({ generateStepNumber: step }),
+      // Step generation dialog
+      generateDialogOpen: false,
+      setGenerateDialogOpen: (open) => set({ generateDialogOpen: open }),
+      generateStepNumber: 1,
+      setGenerateStepNumber: (step) => set({ generateStepNumber: step }),
 
-  // Chapter generation
-  generateChapterNumber: 1,
-  setGenerateChapterNumber: (num) => set({ generateChapterNumber: num }),
+      // Chapter generation
+      generateChapterNumber: 1,
+      setGenerateChapterNumber: (num) => set({ generateChapterNumber: num }),
 
-  // Agent system
-  activeAgent: 'director' as AgentRole,
-  setActiveAgent: (agent) => set({ activeAgent: agent }),
-  agentActivities: [],
-  addAgentActivity: (activity) =>
-    set((state) => ({ agentActivities: [...state.agentActivities, activity] })),
-  setAgentActivities: (activities) => set({ agentActivities: activities }),
-  clearAgentActivities: () => set({ agentActivities: [] }),
-  agentStatus: {},
-  setAgentStatus: (agentId, status) =>
-    set((state) => ({
-      agentStatus: { ...state.agentStatus, [agentId]: status },
-    })),
-}));
+      // Agent system
+      activeAgent: 'director' as AgentRole,
+      setActiveAgent: (agent) => set({ activeAgent: agent }),
+      agentActivities: [],
+      addAgentActivity: (activity) =>
+        set((state) => ({ agentActivities: [...state.agentActivities, activity] })),
+      setAgentActivities: (activities) => set({ agentActivities: activities }),
+      clearAgentActivities: () => set({ agentActivities: [] }),
+      agentStatus: {},
+      setAgentStatus: (agentId, status) =>
+        set((state) => ({
+          agentStatus: { ...state.agentStatus, [agentId]: status },
+        })),
+
+      // Settings
+      settingsOpen: false,
+      setSettingsOpen: (open) => set({ settingsOpen: open }),
+      selectedModel: DEFAULT_MODEL_ID,
+      setSelectedModel: (modelId) => set({ selectedModel: modelId }),
+    }),
+    {
+      name: 'bijing-novel-ai-settings',
+      partialize: (state) => ({
+        selectedModel: state.selectedModel,
+      }),
+    }
+  )
+);

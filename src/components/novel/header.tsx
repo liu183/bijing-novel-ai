@@ -12,7 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Feather, Moon, Sun, Plus, Bot } from 'lucide-react';
+import { Feather, Moon, Sun, Plus, Bot, Settings } from 'lucide-react';
 
 const viewLabels: Record<string, string> = {
   dashboard: '仪表盘',
@@ -26,6 +26,8 @@ export function Header() {
   const viewMode = useAppStore((s) => s.viewMode);
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
+  const selectedModel = useAppStore((s) => s.selectedModel);
   const currentNovel = useAppStore((s) => s.currentNovel);
   const [mounted, setMounted] = React.useState(false);
 
@@ -113,6 +115,18 @@ export function Header() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5">
+          {/* Model Settings */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSettingsOpen(true)}
+            className="h-9 w-9 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
+            aria-label="模型设置"
+            title={selectedModel ? `当前模型: ${selectedModel}` : '模型设置'}
+          >
+            <Settings className="size-4 text-muted-foreground" />
+          </Button>
+
           {/* Dark Mode Toggle */}
           <Button
             variant="ghost"

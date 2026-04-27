@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createAIService } from '@/lib/ai';
 import { STEPS } from '@/lib/steps-config';
 import {
   getAgent,
@@ -294,18 +294,17 @@ ${skill.outputFormat}
 5. 如果某些参数未提供但有默认值，请使用默认值
 6. 始终使用中文输出`;
 
-    // ── 8. Call LLM ──────────────────────────────────────────────────────
-    const zai = await ZAI.create();
+    // ── 8. Call LLM (Nvidia NIM) ──────────────────────────────────────
+    const ai = await createAIService();
 
-    const completion = await zai.chat.completions.create({
+    const completion = await ai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: skillSystemPrompt },
+        { role: 'system', content: skillSystemPrompt },
         {
           role: 'user',
           content: `请执行技能「${skill.name}」，使用上述参数进行创作。`,
         },
       ],
-      thinking: { type: 'disabled' },
     });
 
     const result = completion.choices[0]?.message?.content || '';

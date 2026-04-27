@@ -9,6 +9,7 @@ import { Header } from '@/components/novel/header';
 import { AgentConsole } from '@/components/novel/agent-console';
 import { CreateNovelDialog } from '@/components/novel/create-novel-dialog';
 import { GenerateStepDialog } from '@/components/novel/generate-step-dialog';
+import { ModelSettingsDialog } from '@/components/novel/model-settings-dialog';
 
 export default function HomePage() {
   const viewMode = useAppStore((s) => s.viewMode);
@@ -34,6 +35,7 @@ export default function HomePage() {
       </main>
       <CreateNovelDialog />
       <GenerateStepDialog />
+      <ModelSettingsDialog />
     </div>
   );
 }

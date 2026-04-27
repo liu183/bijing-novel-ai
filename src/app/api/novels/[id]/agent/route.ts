@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createAIService } from '@/lib/ai';
 import { STEPS } from '@/lib/steps-config';
 import { getAgent, getSkillsForAgent, type AgentRole } from '@/lib/agents';
 
@@ -259,21 +259,20 @@ ${skillsDescription || '（暂无可用技能）'}
 5. 如果你认为不需要使用特定技能，直接根据你的专业知识回答即可
 6. 保持你独特的角色个性和专业风格`;
 
-    // ── 7. Call LLM ──────────────────────────────────────────────────────
-    const zai = await ZAI.create();
+    // ── 7. Call LLM (Nvidia NIM) ───────────────────────────────────────
+    const ai = await createAIService();
 
     const chatHistory = recentMessages.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
 
-    const completion = await zai.chat.completions.create({
+    const completion = await ai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: systemPrompt },
+        { role: 'system', content: systemPrompt },
         ...chatHistory,
         { role: 'user', content: message },
       ],
-      thinking: { type: 'disabled' },
     });
 
     const agentContent = completion.choices[0]?.message?.content || '';

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createAIService } from '@/lib/ai';
 import { getSystemPrompt, getUserInputPrompt } from '@/lib/ai-prompts';
 import { STEPS } from '@/lib/steps-config';
 
@@ -41,17 +41,16 @@ export async function POST(
       update: { status: 'generating' },
     });
 
-    // Initialize AI
-    const zai = await ZAI.create();
+    // Initialize AI (Nvidia NIM)
+    const ai = await createAIService();
     const systemPrompt = getSystemPrompt(stepNumber, novel, previousSteps);
     const userPrompt = getUserInputPrompt(stepNumber, inputs || {});
 
-    const completion = await zai.chat.completions.create({
+    const completion = await ai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: systemPrompt },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      thinking: { type: 'disabled' },
     });
 
     const content = completion.choices[0]?.message?.content || '';

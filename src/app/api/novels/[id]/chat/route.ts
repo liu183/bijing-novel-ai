@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createAIService } from '@/lib/ai';
 import { STEPS } from '@/lib/steps-config';
 
 export async function POST(
@@ -63,16 +63,13 @@ ${stepsContext || '（暂无已完成步骤）'}
     }));
 
     const messages = [
-      { role: 'assistant' as const, content: systemPrompt },
+      { role: 'system' as const, content: systemPrompt },
       ...chatHistory,
       { role: 'user' as const, content: message },
     ];
 
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages,
-      thinking: { type: 'disabled' },
-    });
+    const ai = await createAIService();
+    const completion = await ai.chat.completions.create({ messages });
 
     const response = completion.choices[0]?.message?.content || '';
 
