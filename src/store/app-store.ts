@@ -1,6 +1,20 @@
 import { create } from 'zustand';
+import type { AgentRole } from '@/lib/agents';
 
-export type ViewMode = 'dashboard' | 'workspace' | 'reader';
+export type ViewMode = 'dashboard' | 'workspace' | 'reader' | 'console';
+
+export interface AgentActivityData {
+  id: string;
+  type: 'thinking' | 'skill_start' | 'skill_complete' | 'message' | 'error' | 'status_change' | 'user_message';
+  agentId: string;
+  agentName: string;
+  agentAvatar: string;
+  content: string;
+  skillName?: string;
+  skillDescription?: string;
+  status?: string;
+  timestamp: number;
+}
 
 interface StepData {
   id?: string;
@@ -92,6 +106,16 @@ interface AppState {
   // Chapter generation
   generateChapterNumber: number;
   setGenerateChapterNumber: (num: number) => void;
+
+  // Agent system
+  activeAgent: AgentRole | null;
+  setActiveAgent: (agent: AgentRole | null) => void;
+  agentActivities: AgentActivityData[];
+  addAgentActivity: (activity: AgentActivityData) => void;
+  setAgentActivities: (activities: AgentActivityData[]) => void;
+  clearAgentActivities: () => void;
+  agentStatus: Record<string, 'idle' | 'thinking' | 'working' | 'done'>;
+  setAgentStatus: (agentId: string, status: 'idle' | 'thinking' | 'working' | 'done') => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -142,4 +166,18 @@ export const useAppStore = create<AppState>((set) => ({
   // Chapter generation
   generateChapterNumber: 1,
   setGenerateChapterNumber: (num) => set({ generateChapterNumber: num }),
+
+  // Agent system
+  activeAgent: 'director' as AgentRole,
+  setActiveAgent: (agent) => set({ activeAgent: agent }),
+  agentActivities: [],
+  addAgentActivity: (activity) =>
+    set((state) => ({ agentActivities: [...state.agentActivities, activity] })),
+  setAgentActivities: (activities) => set({ agentActivities: activities }),
+  clearAgentActivities: () => set({ agentActivities: [] }),
+  agentStatus: {},
+  setAgentStatus: (agentId, status) =>
+    set((state) => ({
+      agentStatus: { ...state.agentStatus, [agentId]: status },
+    })),
 }));

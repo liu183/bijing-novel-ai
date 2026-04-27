@@ -12,11 +12,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Feather, Moon, Sun, Plus } from 'lucide-react';
+import { Feather, Moon, Sun, Plus, Bot } from 'lucide-react';
 
 const viewLabels: Record<string, string> = {
   dashboard: '仪表盘',
   workspace: '创作工作台',
+  console: '智能体控制台',
   reader: '小说阅读',
 };
 
@@ -32,7 +33,7 @@ export function Header() {
     setMounted(true);
   }, []);
 
-  const handleBreadcrumbClick = (mode: 'dashboard' | 'workspace' | 'reader') => {
+  const handleBreadcrumbClick = (mode: 'dashboard' | 'workspace' | 'console' | 'reader') => {
     if (mode !== viewMode) {
       setViewMode(mode);
     }
@@ -67,7 +68,7 @@ export function Header() {
                 <>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    {viewMode === 'reader' ? (
+                    {(viewMode === 'reader' || viewMode === 'console') ? (
                       <BreadcrumbLink
                         className="cursor-pointer"
                         onClick={() => handleBreadcrumbClick('workspace')}
@@ -78,17 +79,15 @@ export function Header() {
                       <BreadcrumbPage>{viewLabels[viewMode]}</BreadcrumbPage>
                     )}
                   </BreadcrumbItem>
-                  {viewMode === 'reader' && (
+                  {viewMode === 'console' && (
                     <>
                       <BreadcrumbSeparator />
                       <BreadcrumbItem>
-                        <BreadcrumbPage>
-                          {currentNovel?.title || '小说阅读'}
-                        </BreadcrumbPage>
+                        <BreadcrumbPage>{viewLabels[viewMode]}</BreadcrumbPage>
                       </BreadcrumbItem>
                     </>
                   )}
-                  {viewMode === 'workspace' && currentNovel && (
+                  {(viewMode === 'workspace' || viewMode === 'reader' || viewMode === 'console') && currentNovel && (
                     <>
                       <BreadcrumbSeparator />
                       <BreadcrumbItem>
@@ -107,12 +106,13 @@ export function Header() {
         {/* Mobile breadcrumb */}
         <div className="sm:hidden flex items-center gap-1 text-sm text-muted-foreground">
           {viewMode === 'dashboard' && '仪表盘'}
-          {viewMode === 'workspace' && `创作工作台${currentNovel ? ` · ${currentNovel.title}` : ''}`}
-          {viewMode === 'reader' && `小说阅读`}
+          {viewMode === 'workspace' && `工作台${currentNovel ? ` · ${currentNovel.title}` : ''}`}
+          {viewMode === 'console' && `智能体${currentNovel ? ` · ${currentNovel.title}` : ''}`}
+          {viewMode === 'reader' && `阅读`}
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Dark Mode Toggle */}
           <Button
             variant="ghost"
@@ -128,13 +128,30 @@ export function Header() {
             )}
           </Button>
 
+          {/* Agent Console Toggle */}
+          {currentNovel && (
+            <Button
+              variant={viewMode === 'console' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode(viewMode === 'console' ? 'workspace' : 'console')}
+              className={`h-9 gap-1.5 transition-all ${
+                viewMode === 'console'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm'
+                  : 'border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+              }`}
+            >
+              <Bot className="size-3.5" />
+              <span className="hidden sm:inline">{viewMode === 'console' ? '工作台' : '智能体'}</span>
+            </Button>
+          )}
+
           {/* New Project Button */}
           <Button
             onClick={() => setCreateDialogOpen(true)}
             size="sm"
             className="h-9 gap-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700 hover:shadow-md transition-all"
           >
-            <Plus className="size-4" />
+            <Plus className="size-3.5" />
             <span className="hidden sm:inline">新建项目</span>
           </Button>
         </div>

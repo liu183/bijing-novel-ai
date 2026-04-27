@@ -23,6 +23,7 @@ model Novel {
   steps    NovelStep[]
   chapters Chapter[]
   messages ChatMessage[]
+  activities AgentActivity[]
 
   @@index([status])
 }
@@ -63,9 +64,31 @@ model Chapter {
 model ChatMessage {
   id        String   @id @default(cuid())
   novelId   String
-  role      String   // user, assistant, system
+  role      String   // user, assistant, system, agent
   content   String
   stepRef   Int?     // which step this message is related to
+  agentId   String?  // which agent sent this message
+  agentName String?
+  skillUsed String?  // which skill was invoked
+  createdAt DateTime @default(now())
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@index([novelId])
+  @@index([createdAt])
+}
+
+model AgentActivity {
+  id        String   @id @default(cuid())
+  novelId   String
+  agentId   String   // agent role id
+  agentName String
+  type      String   // thinking, skill_start, skill_complete, message, error, status_change
+  content   String   @default("")
+ skillName String?
+  skillDescription String?
+  status    String?
+  metadata  String   @default("{}") // JSON string
   createdAt DateTime @default(now())
 
   novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
