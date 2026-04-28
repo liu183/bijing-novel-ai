@@ -1,51 +1,34 @@
 ---
-Task ID: 6
-Agent: Main Coordinator
-Task: 环境配置、代码提交、部署 Vercel
+Task ID: 1
+Agent: Main Agent
+Task: 配置Vercel数据库资源 + 网文创作Agent系统平台部署
 
 Work Log:
-- 创建 .env.local 配置 NVIDIA API Key (nvapi-...)
-- 删除 .env 文件，统一使用 .env.local
-- 更新 .gitignore：排除 .env*（除 .env.example）、数据库文件、worklog、agent-ctx
-- 更新 vercel.json：添加 prisma generate 到构建命令
-- 更新 package.json 项目名为 bijing-novel-ai
-- 运行 ESLint 检查：0 错误 0 警告
-- 验证 dev server 正常运行（端口 3000）
-- 验证 agent-service 正常运行（端口 3003）
-- 提交代码并推送到 GitHub 远程仓库 liu183/bijing-novel-ai
-- Vercel CLI 部署到生产环境：https://bijing-novel-ai.vercel.app
-- 配置 Vercel 环境变量 NVIDIA_API_KEY
+- 检查项目当前状态：已有完整的网文创作Agent系统框架（7个Agent角色、30+技能）
+- 确认 .gitignore 已包含 .env 文件排除规则
+- 安装 @neondatabase/serverless@1.1.0 和 @prisma/adapter-neon@7.8.0 依赖
+- 创建 prisma/schema.postgres.prisma 用于 Vercel 部署的 PostgreSQL schema
+- 更新 db.ts 支持双数据库模式：本地 SQLite + Vercel PostgreSQL (Neon serverless)
+- 新增 /api/db 健康检查和数据库初始化端点
+- 新增 scripts/setup-db.sh 数据库设置脚本
+- 更新 .env.example 包含 PostgreSQL 配置说明
+- 通过 Vercel API 设置环境变量：
+  - NVIDIA_API_KEY (production, sensitive)
+  - NVIDIA_MODEL=nvidia/llama-3.1-nemotron-ultra-253b-instruct (production+preview)
+  - DATABASE_URL=file:/tmp/dev.db (production, 用于构建时的SQLite占位)
+- 修复部署错误：Prisma schema provider(sqlite) 与 PostgreSQL URL 不匹配导致构建失败
+- 推送代码到 GitHub (2 commits)，触发 Vercel 自动部署
+- 最终部署成功 (dpl_2NhrTJg3tGX67cRaypReyKu3c5Di, READY)
 
 Stage Summary:
-- .env 文件已从 git 中移除，.gitignore 正确忽略所有敏感文件
-- GitHub 远程仓库：https://github.com/liu183/bijing-novel-ai
-- Vercel 部署地址：https://bijing-novel-ai.vercel.app
-- 所有服务正常运行
+- ✅ Vercel 部署成功: https://bijing-novel-ai.vercel.app
+- ✅ 本地开发: SQLite (file:./db/custom.db)
+- ✅ Vercel 生产: 支持切换到 PostgreSQL (Neon) 当 DATABASE_URL 为 postgresql:// 时
+- ✅ 数据库健康检查端点: GET /api/db
+- ✅ 数据库初始化端点: POST /api/db
+- ⚠️  当前 DATABASE_URL 为 SQLite 占位值（file:/tmp/dev.db），生产环境需要替换为实际 PostgreSQL 连接串
 
-## 项目当前状态描述/判断
-项目已完成基础版本搭建和部署，核心功能已实现并可运行：
-- 仪表盘：创建/管理小说项目
-- 创作工作台：12步AI引导创作流程 + AI对话助手
-- 智能体控制台：7个专业Agent + 31个可调用技能
-- 小说阅读器：章节阅读 + AI章节生成
-- 完整后端API + 数据库持久化
-- NVIDIA模型服务集成，支持多模型切换
-- WebSocket实时推送Agent状态
-- 暗色模式 + 响应式设计
-- 已部署到 Vercel：https://bijing-novel-ai.vercel.app
-
-## 当前目标/已完成修改/验证结果
-✅ 完整Agent系统架构（7 Agent + 31 Skills）
-✅ 12步小说创作法框架
-✅ NVIDIA模型服务集成（多模型支持）
-✅ GitHub代码推送
-✅ Vercel部署
-✅ ESLint 0错误
-
-## 未解决问题或风险，建议下一阶段优先事项
-- [ ] Vercel部署后Prisma数据库适配（当前使用SQLite，Vercel为无状态环境，需考虑Vercel Postgres或Turso等）
-- [ ] AI流式输出（当前为完整响应，需改为SSE流式）
-- [ ] WebSocket前端集成（Socket.IO客户端连接）
-- [ ] Agent协作编排
-- [ ] 导出功能（Markdown/TXT/DOCX）
-- [ ] 移动端Agent Console适配优化
+待用户操作:
+1. 在 Vercel Dashboard > bijing-novel-ai > Storage 中创建 Postgres (Neon) 数据库
+2. 创建后 Vercel 会自动设置正确的 DATABASE_URL 环境变量
+3. 然后可以调用 POST /api/db 来初始化数据库表结构
