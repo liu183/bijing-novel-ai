@@ -1,16 +1,14 @@
 // ============================================================================
-// 笔境 AI - Database Schema
-// 本地开发: SQLite (file:./db/custom.db)
-// Vercel 部署: PostgreSQL (Neon) - DATABASE_URL 以 postgresql:// 开头时自动切换
+// 笔境 AI - Database Schema for PostgreSQL (Vercel / Neon)
+// Vercel 部署时自动使用此 schema
 // ============================================================================
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// 本地开发使用 SQLite
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
