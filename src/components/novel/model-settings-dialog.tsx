@@ -192,7 +192,7 @@ export function ModelSettingsDialog() {
                                 {model.description}
                               </p>
                               <p className="text-[10px] text-muted-foreground/70 mt-1">
-                                上下文: {model.maxTokens >= 131072 ? '128K' : `${(model.maxTokens / 1024).toFixed(0)}K`} tokens
+                                上下文: {model.maxTokens >= 1048576 ? '1M' : model.maxTokens >= 131072 ? '128K' : `${(model.maxTokens / 1024).toFixed(0)}K`} tokens
                                 {' · '}
                                 ID: {model.id}
                               </p>

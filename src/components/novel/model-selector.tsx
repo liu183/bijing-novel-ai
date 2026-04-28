@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/app-store';
-import { getModelInfo, NVIDIA_MODELS, DEFAULT_MODEL_ID, getModelsByCategory } from '@/lib/ai/models';
+import { getModelInfo, ALL_MODELS, DEFAULT_MODEL_ID, getModelsByCategory } from '@/lib/ai/models';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -61,6 +61,7 @@ const providerColors: Record<string, string> = {
   Microsoft: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400',
   Alibaba: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400',
   DeepSeek: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
+  '智谱GLM': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
 };
 
 export function ModelSelector() {
@@ -76,9 +77,9 @@ export function ModelSelector() {
 
   // Filter models by search
   const filteredModels = useMemo(() => {
-    if (!search.trim()) return NVIDIA_MODELS;
+    if (!search.trim()) return ALL_MODELS;
     const q = search.toLowerCase();
-    return NVIDIA_MODELS.filter(
+    return ALL_MODELS.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.id.toLowerCase().includes(q) ||
@@ -321,7 +322,9 @@ export function ModelSelector() {
                               </p>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-[10px] text-muted-foreground/60 font-mono">
-                                  {model.maxTokens >= 131072
+                                  {model.maxTokens >= 1048576
+                                    ? '1M'
+                                    : model.maxTokens >= 131072
                                     ? '128K'
                                     : `${(model.maxTokens / 1024).toFixed(0)}K`}
                                   {' '}tokens
@@ -343,7 +346,7 @@ export function ModelSelector() {
           {/* Footer */}
           <div className="px-4 py-2.5 flex items-center justify-between bg-muted/10">
             <p className="text-[10px] text-muted-foreground/60">
-              {NVIDIA_MODELS.length} 个模型可选 · Powered by NVIDIA NIM
+              {ALL_MODELS.length} 个模型可选 · Nvidia NIM · 智谱 GLM
             </p>
             <Button
               variant="ghost"

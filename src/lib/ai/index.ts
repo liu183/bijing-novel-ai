@@ -1,14 +1,13 @@
 // ============================================================================
-// Nvidia NIM API Client
-// 笔境 AI - 统一大模型服务层
+// Unified AI Service Layer
+// 笔境 AI - 多服务商大模型统一调用层
 // ============================================================================
 //
-// 使用 Nvidia NIM API (OpenAI 兼容接口) 替代 z-ai-web-dev-sdk
-// API 基础URL: https://integrate.api.nvidia.com/v1
-// 文档: https://docs.api.nvidia.com/nim/reference/
+// 支持 Nvidia NIM、智谱 GLM 等多个服务商
+// 所有服务商均使用 OpenAI 兼容接口
 // ============================================================================
 
-import { DEFAULT_MODEL_ID, getModelInfo } from './models';
+import { DEFAULT_MODEL_ID, getModelInfo, getApiBaseForModel, getApiKeyEnvForModel } from './models';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,35 +45,38 @@ export interface ChatCompletionResult {
 // Configuration
 // ---------------------------------------------------------------------------
 
-const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
+// 默认超时时间：55 秒（留出 Vercel maxDuration 60s 的余量）
+const API_TIMEOUT_MS = 55_000;
 
-function getApiKey(): string {
-  const key = process.env.NVIDIA_API_KEY;
+/**
+ * 根据模型 ID 获取 API Key
+ * 智谱 GLM → GLM_API_KEY
+ * Nvidia / 其他 → NVIDIA_API_KEY
+ */
+function getApiKeyForModel(modelId: string): string {
+  const envName = getApiKeyEnvForModel(modelId);
+  const key = process.env[envName];
+
   if (!key) {
+    const provider = getModelInfo(modelId)?.provider || 'Nvidia';
     throw new Error(
-      'NVIDIA_API_KEY 环境变量未设置。请在 .env.local 文件中配置 NVIDIA_API_KEY。'
+      `${envName} 环境变量未设置。请在 .env.local 文件中配置 ${envName}（当前模型: ${modelId}，服务商: ${provider}）。`
     );
   }
   return key;
 }
 
-function getCustomModel(): string | null {
-  return process.env.NVIDIA_MODEL || null;
-}
-
 // ---------------------------------------------------------------------------
-// Core API call
+// Core API call — unified for all providers
 // ---------------------------------------------------------------------------
 
-// 默认超时时间：55 秒（留出 Vercel maxDuration 60s 的余量）
-const API_TIMEOUT_MS = 55_000;
-
-async function callNvidiaAPI(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
-  const apiKey = getApiKey();
-  const model = options.model || getCustomModel() || DEFAULT_MODEL_ID;
-
+async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
+  const model = options.model || DEFAULT_MODEL_ID;
+  const apiKey = getApiKeyForModel(model);
+  const apiBase = getApiBaseForModel(model);
   const modelInfo = getModelInfo(model);
 
+  // Build request body (OpenAI compatible)
   const body: Record<string, unknown> = {
     model,
     messages: options.messages.map((m) => ({
@@ -92,41 +94,50 @@ async function callNvidiaAPI(options: ChatCompletionOptions): Promise<ChatComple
     body.stream = true;
   }
 
-  console.log(`[Nvidia AI] Calling model: ${model}`);
-  console.log(`[Nvidia AI] Messages count: ${options.messages.length}`);
+  console.log(`[AI] Calling model: ${model} (provider: ${modelInfo?.provider || 'unknown'})`);
+  console.log(`[AI] API base: ${apiBase}`);
+  console.log(`[AI] Messages count: ${options.messages.length}`);
 
-  // 使用 AbortController 设置超时
+  // Build headers based on provider
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // Nvidia NIM requires an additional NVAPI-KEY header
+  const provider = modelInfo?.provider;
+  if (provider !== '智谱GLM') {
+    headers['NVAPI-KEY'] = apiKey;
+  }
+
+  // AbortController for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   let response: Response;
   try {
-    response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+    response = await fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'NVAPI-KEY': apiKey,
-      },
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (fetchError) {
     clearTimeout(timeoutId);
     if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-      console.error(`[Nvidia AI] Request timeout after ${API_TIMEOUT_MS / 1000}s`);
-      throw new Error(`Nvidia API 请求超时 (${API_TIMEOUT_MS / 1000}s)，请稍后重试`);
+      console.error(`[AI] Request timeout after ${API_TIMEOUT_MS / 1000}s`);
+      throw new Error(`AI 请求超时 (${API_TIMEOUT_MS / 1000}s)，请稍后重试`);
     }
-    console.error('[Nvidia AI] Network error:', fetchError);
-    throw new Error(`Nvidia API 网络错误: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`);
+    console.error('[AI] Network error:', fetchError);
+    throw new Error(`AI 网络错误: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`);
   } finally {
     clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[Nvidia AI] API Error ${response.status}: ${errorText}`);
-    throw new Error(`Nvidia API 调用失败 (${response.status}): ${errorText}`);
+    console.error(`[AI] API Error ${response.status}: ${errorText}`);
+    throw new Error(`AI 调用失败 (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
@@ -148,12 +159,12 @@ async function callNvidiaAPI(options: ChatCompletionOptions): Promise<ChatComple
 // Streaming API call (SSE)
 // ---------------------------------------------------------------------------
 
-export async function* streamNvidiaAPI(
+export async function* streamAI(
   options: ChatCompletionOptions
 ): AsyncGenerator<{ type: 'content' | 'done' | 'error'; data: string }> {
-  const apiKey = getApiKey();
-  const model = options.model || getCustomModel() || DEFAULT_MODEL_ID;
-
+  const model = options.model || DEFAULT_MODEL_ID;
+  const apiKey = getApiKeyForModel(model);
+  const apiBase = getApiBaseForModel(model);
   const modelInfo = getModelInfo(model);
 
   const body = {
@@ -170,21 +181,25 @@ export async function* streamNvidiaAPI(
     stream: true,
   };
 
-  console.log(`[Nvidia AI] Streaming model: ${model}`);
+  console.log(`[AI] Streaming model: ${model}`);
 
-  const response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+  if (modelInfo?.provider !== '智谱GLM') {
+    headers['NVAPI-KEY'] = apiKey;
+  }
+
+  const response = await fetch(`${apiBase}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'NVAPI-KEY': apiKey,
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    yield { type: 'error', data: `Nvidia API 调用失败 (${response.status}): ${errorText}` };
+    yield { type: 'error', data: `AI 调用失败 (${response.status}): ${errorText}` };
     return;
   }
 
@@ -242,8 +257,7 @@ export async function* streamNvidiaAPI(
 // ---------------------------------------------------------------------------
 
 /**
- * 创建一个与 z-ai-web-dev-sdk 兼容的 AI 服务实例
- * 用法与原来的 ZAI.create() 相同，但底层使用 Nvidia API
+ * 创建一个兼容的 AI 服务实例
  */
 export async function createAIService() {
   return {
@@ -251,7 +265,7 @@ export async function createAIService() {
       completions: {
         /**
          * 创建聊天补全
-         * 兼容 z-ai-web-dev-sdk 的调用格式
+         * 兼容 OpenAI SDK 的调用格式
          */
         async create(options: {
           messages: { role: string; content: string }[];
@@ -272,7 +286,7 @@ export async function createAIService() {
             total_tokens: number;
           };
         }> {
-          const result = await callNvidiaAPI({
+          const result = await callAI({
             messages: options.messages.map((m) => ({
               role: m.role as 'system' | 'user' | 'assistant',
               content: m.content,
@@ -301,7 +315,7 @@ export async function createAIService() {
         /**
          * 流式聊天补全
          */
-        stream: streamNvidiaAPI,
+        stream: streamAI,
       },
     },
   };
@@ -311,35 +325,42 @@ export async function createAIService() {
  * 快速调用 - 发送消息并获取回复
  */
 export async function chat(messages: ChatMessage[], model?: string): Promise<string> {
-  const result = await callNvidiaAPI({ messages, model });
+  const result = await callAI({ messages, model });
   return result.content;
 }
 
 /**
- * 获取当前配置的模型ID
+ * 获取当前默认模型ID
  */
 export function getCurrentModelId(): string {
-  return getCustomModel() || DEFAULT_MODEL_ID;
+  return DEFAULT_MODEL_ID;
 }
 
 /**
- * 获取当前模型信息
+ * 获取当前默认模型信息
  */
 export function getCurrentModelInfo() {
-  return getModelInfo(getCurrentModelId());
+  return getModelInfo(DEFAULT_MODEL_ID);
 }
 
 /**
  * 验证 API Key 是否有效
  */
-export async function validateApiKey(key: string): Promise<boolean> {
+export async function validateApiKey(modelId?: string): Promise<boolean> {
+  const model = modelId || DEFAULT_MODEL_ID;
+  const apiKey = getApiKeyForModel(model);
+  const apiBase = getApiBaseForModel(model);
+
   try {
-    const response = await fetch(`${NVIDIA_API_BASE}/models`, {
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'NVAPI-KEY': key,
-      },
-    });
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+    };
+    const modelInfo = getModelInfo(model);
+    if (modelInfo?.provider !== '智谱GLM') {
+      headers['NVAPI-KEY'] = apiKey;
+    }
+
+    const response = await fetch(`${apiBase}/models`, { headers });
     return response.ok;
   } catch {
     return false;
