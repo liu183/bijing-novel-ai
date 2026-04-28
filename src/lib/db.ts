@@ -56,7 +56,12 @@ function createPrismaClient(): PrismaClient {
 
     // 构建带 schema 的连接 URL
     const url = new URL(databaseUrl);
-    url.searchParams.set('options', '-csearch_path=bijing_novel');
+    const existingOptions = url.searchParams.get('options') || '';
+    const schemaOption = '-csearch_path=bijing_novel';
+    url.searchParams.set(
+      'options',
+      existingOptions ? `${existingOptions},${schemaOption}` : schemaOption
+    );
     const connectionString = url.toString();
 
     const sql = neon(connectionString);
@@ -66,7 +71,6 @@ function createPrismaClient(): PrismaClient {
 
     return new PrismaClient({
       adapter,
-      datasourceUrl: connectionString,
       log: ['error'],
     }) as PrismaClient;
   }
