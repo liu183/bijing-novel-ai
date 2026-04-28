@@ -53,3 +53,14 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database
+/db/*.db
+/db/*.db-journal
+
+# Worklog and agent context (development only)
+worklog*.md
+agent-ctx/
+
+# Downloaded files
+/download/
