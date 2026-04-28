@@ -13,7 +13,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { message } = body;
+    const { message, model: requestModel } = body;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -72,7 +72,7 @@ ${stepsContext || '（暂无已完成步骤）'}
     ];
 
     const ai = await createAIService();
-    const completion = await ai.chat.completions.create({ messages });
+    const completion = await ai.chat.completions.create({ messages, model: requestModel || undefined });
 
     const response = completion.choices[0]?.message?.content || '';
 

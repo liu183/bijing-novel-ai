@@ -163,9 +163,10 @@ export async function POST(
   try {
     const { id: novelId } = await params;
     const body = await request.json();
-    const { message, agentId: requestedAgentId } = body as {
+    const { message, agentId: requestedAgentId, model: requestModel } = body as {
       message: string;
       agentId?: string;
+      model?: string;
     };
 
     if (!message?.trim()) {
@@ -276,6 +277,7 @@ ${skillsDescription || '（暂无可用技能）'}
         ...chatHistory,
         { role: 'user', content: message },
       ],
+      model: requestModel || undefined,
     });
 
     const agentContent = completion.choices[0]?.message?.content || '';

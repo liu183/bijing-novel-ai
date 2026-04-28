@@ -21,7 +21,7 @@ export async function POST(
     novelId = id;
 
     const body = await request.json();
-    const { stepNumber: reqStepNumber, inputs } = body;
+    const { stepNumber: reqStepNumber, inputs, model: requestModel } = body;
     stepNumber = reqStepNumber;
 
     if (!stepNumber || stepNumber < 1 || stepNumber > 12) {
@@ -71,6 +71,7 @@ export async function POST(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
+      model: requestModel || undefined,
     });
 
     const content = completion.choices[0]?.message?.content || '';

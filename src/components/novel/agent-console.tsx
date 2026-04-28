@@ -210,6 +210,7 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const agentActivities = useAppStore((s) => s.agentActivities);
   const addAgentActivity = useAppStore((s) => s.addAgentActivity);
   const agentStatus = useAppStore((s) => s.agentStatus);
+  const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [inputText, setInputText] = useState('');
   const [skillsOpen, setSkillsOpen] = useState(false);
@@ -279,6 +280,7 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
         body: JSON.stringify({
           message,
           agentId: currentAgentDef.id,
+          model: selectedModel,
         }),
       });
 

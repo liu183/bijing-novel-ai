@@ -33,6 +33,7 @@ export function GenerateStepDialog() {
   const setIsGenerating = useAppStore((s) => s.setIsGenerating);
   const setCurrentNovel = useAppStore((s) => s.setCurrentNovel);
   const setCurrentStep = useAppStore((s) => s.setCurrentStep);
+  const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -76,7 +77,7 @@ export function GenerateStepDialog() {
       const res = await fetch(`/api/novels/${currentNovel.id}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stepNumber, inputs }),
+        body: JSON.stringify({ stepNumber, inputs, model: selectedModel }),
       });
 
       const data = await res.json();

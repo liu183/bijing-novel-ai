@@ -121,6 +121,7 @@ export function WorkspaceView() {
   const isChapterGenerating = useAppStore((s) => s.isChapterGenerating);
   const setIsChapterGenerating = useAppStore((s) => s.setIsChapterGenerating);
   const setGenerateChapterNumber = useAppStore((s) => s.setGenerateChapterNumber);
+  const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -311,7 +312,7 @@ export function WorkspaceView() {
       const res = await fetch(`/api/novels/${currentNovel.id}/chapters`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chapterNumber }),
+        body: JSON.stringify({ chapterNumber, model: selectedModel }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -349,7 +350,7 @@ export function WorkspaceView() {
       const res = await fetch(`/api/novels/${currentNovel.id}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, model: selectedModel }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '对话失败');

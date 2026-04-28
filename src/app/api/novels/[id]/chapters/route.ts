@@ -12,7 +12,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { chapterNumber } = body;
+    const { chapterNumber, model: requestModel } = body;
 
     const novel = await db.novel.findUnique({ where: { id } });
     if (!novel) {
@@ -72,6 +72,7 @@ ${pacing ? `## 节奏参考\n${pacing}` : ''}
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `请创作第${chapterNumber}章的完整正文。注意与前面章节的衔接。` },
       ],
+      model: requestModel || undefined,
     });
 
     const content = completion.choices[0]?.message?.content || '';
