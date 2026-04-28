@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAIService } from '@/lib/ai';
 import { STEPS } from '@/lib/steps-config';
 
+// Vercel Serverless Function 最大执行时间（秒）
+export const maxDuration = 60;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -66,6 +66,9 @@ function getCustomModel(): string | null {
 // Core API call
 // ---------------------------------------------------------------------------
 
+// 默认超时时间：55 秒（留出 Vercel maxDuration 60s 的余量）
+const API_TIMEOUT_MS = 55_000;
+
 async function callNvidiaAPI(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
   const apiKey = getApiKey();
   const model = options.model || getCustomModel() || DEFAULT_MODEL_ID;
@@ -92,15 +95,33 @@ async function callNvidiaAPI(options: ChatCompletionOptions): Promise<ChatComple
   console.log(`[Nvidia AI] Calling model: ${model}`);
   console.log(`[Nvidia AI] Messages count: ${options.messages.length}`);
 
-  const response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'NVAPI-KEY': apiKey,
-    },
-    body: JSON.stringify(body),
-  });
+  // 使用 AbortController 设置超时
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'NVAPI-KEY': apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (fetchError) {
+    clearTimeout(timeoutId);
+    if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+      console.error(`[Nvidia AI] Request timeout after ${API_TIMEOUT_MS / 1000}s`);
+      throw new Error(`Nvidia API 请求超时 (${API_TIMEOUT_MS / 1000}s)，请稍后重试`);
+    }
+    console.error('[Nvidia AI] Network error:', fetchError);
+    throw new Error(`Nvidia API 网络错误: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -139,18 +139,28 @@ async function buildNovelContext(novelId: string): Promise<string> {
 // POST /api/novels/[id]/agent/skill
 // ---------------------------------------------------------------------------
 
+// Vercel Serverless Function 最大执行时间（秒）
+export const maxDuration = 60;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 将变量提升到 try 外部，避免 catch 块中的引用错误
+  let novelId = '';
+  let savedAgentId = '';
+
   try {
-    const { id: novelId } = await params;
+    const { id } = await params;
+    novelId = id;
+
     const body = await request.json();
     const { agentId, skillId, inputs } = body as {
       agentId: string;
       skillId: string;
       inputs: Record<string, string>;
     };
+    savedAgentId = agentId;
 
     // ── 1. Validate inputs ───────────────────────────────────────────────
     if (!agentId) {
@@ -364,10 +374,10 @@ ${skill.outputFormat}
   } catch (error) {
     console.error('[Agent Skill API] Error:', error);
 
-    const { id: novelId } = await params;
+    const errorId = novelId || (await params).id;
     saveActivity({
-      novelId,
-      agentId: body?.agentId ?? 'director',
+      novelId: errorId,
+      agentId: savedAgentId || 'director',
       agentName: '系统',
       agentRole: '系统',
       type: 'error',

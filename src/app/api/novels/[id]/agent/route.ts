@@ -8,6 +8,9 @@ import { getAgent, getSkillsForAgent, type AgentRole } from '@/lib/agents';
 // Helper: emit events to the WebSocket agent-service (port 3003)
 // ---------------------------------------------------------------------------
 
+// Vercel Serverless Function 最大执行时间（秒）
+export const maxDuration = 60;
+
 async function emitToAgentService(event: {
   type: string;
   agentId: string;
