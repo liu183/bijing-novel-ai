@@ -63,4 +63,4 @@ worklog*.md
 agent-ctx/
 
 # Downloaded files
-/download/
+/download//.zscripts/

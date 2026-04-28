@@ -1,7 +1,7 @@
 // ============================================================================
 // 笔境 AI - Database Client
 // 本地开发: SQLite (Prisma Client)
-// Vercel 部署: PostgreSQL (Supabase) via direct connection
+// Vercel 部署: PostgreSQL (Neon) via POSTGRES_PRISMA_URL (含 pgbouncer 连接池)
 // ============================================================================
 
 import { PrismaClient } from '@prisma/client';
@@ -11,20 +11,21 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
- * 检测是否在 Vercel 环境中运行
- */
-function isVercelProduction(): boolean {
-  return (
-    process.env.NODE_ENV === 'production' ||
-    !!process.env.VERCEL ||
-    !!process.env.AWS_LAMBDA_FUNCTION_NAME
-  );
-}
-
-/**
  * 获取数据库 URL
+ *
+ * Vercel Postgres 自动设置以下环境变量：
+ * - POSTGRES_PRISMA_URL    → Prisma 专用（含 pgbouncer），优先使用
+ * - POSTGRES_URL           → 通用池化连接
+ * - POSTGRES_URL_NON_POOLING → 直连（用于迁移）
+ * - DATABASE_URL           → 通常等于 POSTGRES_PRISMA_URL
  */
 function getDatabaseUrl(): string {
+  // 优先使用 Vercel 自动设置的 Prisma 专用 URL
+  const prismaUrl = process.env.POSTGRES_PRISMA_URL;
+  if (prismaUrl) {
+    return prismaUrl;
+  }
+
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
@@ -35,20 +36,25 @@ function getDatabaseUrl(): string {
 }
 
 /**
+ * 检测数据库类型
+ */
+function isPostgresUrl(url: string): boolean {
+  return url.startsWith('postgresql://') || url.startsWith('postgres://');
+}
+
+/**
  * 创建 PrismaClient 实例
  *
  * - 本地开发: 使用 SQLite，标准 Prisma Client
- * - Vercel 部署: 使用 PostgreSQL (Supabase)，直接连接
+ * - Vercel 部署: 使用 PostgreSQL (Neon)，通过 pgbouncer 连接池
  */
 function createPrismaClient(): PrismaClient {
   const databaseUrl = getDatabaseUrl();
-  const isPostgres =
-    databaseUrl.startsWith('postgresql://') ||
-    databaseUrl.startsWith('postgres://');
+  const isPostgres = isPostgresUrl(databaseUrl);
+  const isVercel = !!process.env.VERCEL;
 
-  // Vercel 生产环境使用 PostgreSQL
-  if (isVercelProduction() && isPostgres) {
-    console.log('[DB] Using PostgreSQL (Supabase)');
+  if (isPostgres) {
+    console.log(`[DB] Using PostgreSQL (Neon) — ${isVercel ? 'Vercel Production' : 'Local Dev'}`);
 
     return new PrismaClient({
       datasources: {
@@ -56,20 +62,99 @@ function createPrismaClient(): PrismaClient {
           url: databaseUrl,
         },
       },
-      log: ['error'],
+      log: isVercel ? ['error'] : ['query', 'error', 'warn'],
     });
   }
 
   // 本地开发使用 SQLite
-  console.log(`[DB] Using ${isPostgres ? 'PostgreSQL' : 'SQLite'} (local)`);
+  console.log('[DB] Using SQLite (local development)');
 
   return new PrismaClient({
     log: ['query', 'error', 'warn'],
   });
 }
 
+// ============================================================================
+// 导出单例
+// ============================================================================
+
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db;
+}
+
+// ============================================================================
+// 工具函数
+// ============================================================================
+
+/**
+ * 健康检查 - 测试数据库连接
+ */
+export async function checkDatabaseHealth(): Promise<{
+  ok: boolean;
+  databaseType: string;
+  isVercel: boolean;
+  novelCount: number;
+  error?: string;
+}> {
+  const isVercel = !!process.env.VERCEL;
+  const databaseUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || '';
+  const isPostgres = isPostgresUrl(databaseUrl);
+
+  try {
+    const novelCount = await db.novel.count();
+
+    return {
+      ok: true,
+      databaseType: isPostgres ? 'PostgreSQL (Neon)' : 'SQLite',
+      isVercel,
+      novelCount,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      databaseType: isPostgres ? 'PostgreSQL' : 'SQLite',
+      isVercel,
+      novelCount: 0,
+      error: error instanceof Error ? error.message : '未知错误',
+    };
+  }
+}
+
+/**
+ * 初始化数据库 schema
+ * 本地: prisma db push (SQLite)
+ * Vercel: prisma db push (PostgreSQL)
+ */
+export async function initDatabaseSchema(): Promise<{ ok: boolean; message: string }> {
+  const databaseUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || '';
+  const isPostgres = isPostgresUrl(databaseUrl);
+  const isVercel = !!process.env.VERCEL;
+
+  try {
+    const { execSync } = await import('node:child_process');
+
+    if (isVercel && isPostgres) {
+      // Vercel Postgres - 使用非池化 URL 进行 schema push
+      const directUrl = process.env.POSTGRES_URL_NON_POOLING || databaseUrl;
+      const result = execSync(
+        `DATABASE_URL="${directUrl}" npx prisma db push --skip-generate --accept-data-loss 2>&1`,
+        { stdio: 'pipe', timeout: 30000 }
+      );
+      return {
+        ok: true,
+        message: `PostgreSQL schema 同步成功: ${result.toString().slice(0, 200)}`,
+      };
+    }
+
+    // 本地 SQLite
+    execSync('npx prisma db push --skip-generate 2>&1', { stdio: 'pipe' });
+    return { ok: true, message: 'SQLite schema 同步成功' };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Schema 同步失败: ${error instanceof Error ? error.message : '未知错误'}`,
+    };
+  }
 }

@@ -4,67 +4,45 @@
 // ============================================================================
 
 import { NextResponse } from 'next/server';
-import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { checkDatabaseHealth, initDatabaseSchema } from '@/lib/db';
 
 export async function GET() {
   try {
-    const databaseUrl = process.env.DATABASE_URL || '';
-    const isPostgres =
-      databaseUrl.startsWith('postgresql://') ||
-      databaseUrl.startsWith('postgres://');
-    const isVercel = !!process.env.VERCEL;
+    const health = await checkDatabaseHealth();
 
-    if (!databaseUrl) {
+    if (health.ok) {
+      return NextResponse.json({
+        status: 'ok',
+        message: '数据库连接正常',
+        environment: health.isVercel ? 'vercel' : 'local',
+        config: {
+          databaseType: health.databaseType,
+        },
+        data: {
+          novelCount: health.novelCount,
+        },
+      });
+    } else {
       return NextResponse.json(
         {
           status: 'error',
-          message: 'DATABASE_URL 环境变量未配置',
-          environment: isVercel ? 'vercel' : 'local',
-          config: { isPostgres: false, isVercel },
+          message: '数据库连接失败',
+          error: health.error,
+          environment: health.isVercel ? 'vercel' : 'local',
+          config: {
+            databaseType: health.databaseType,
+          },
         },
         { status: 500 }
       );
     }
-
-    // Try to connect and query
-    const { db } = await import('@/lib/db');
-
-    // Test connection
-    const result = await db.novel.count();
-
-    return NextResponse.json({
-      status: 'ok',
-      message: '数据库连接正常',
-      environment: isVercel ? 'vercel' : 'local',
-      config: {
-        isPostgres,
-        isVercel,
-        databaseType: isPostgres ? 'PostgreSQL (Supabase)' : 'SQLite',
-        schema: isPostgres ? 'bijing_novel' : 'main',
-      },
-      data: {
-        novelCount: result,
-      },
-    });
   } catch (error) {
     console.error('[DB Health Check] Error:', error);
-    const isVercel = !!process.env.VERCEL;
-    const databaseUrl = process.env.DATABASE_URL || '';
-
     return NextResponse.json(
       {
         status: 'error',
-        message: '数据库连接失败',
+        message: '健康检查失败',
         error: error instanceof Error ? error.message : '未知错误',
-        environment: isVercel ? 'vercel' : 'local',
-        config: {
-          databaseUrlSet: !!databaseUrl,
-          isPostgres:
-            databaseUrl.startsWith('postgresql://') ||
-            databaseUrl.startsWith('postgres://'),
-        },
       },
       { status: 500 }
     );
@@ -73,34 +51,22 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const databaseUrl = process.env.DATABASE_URL || '';
+    const result = await initDatabaseSchema();
 
-    if (!databaseUrl) {
-      return NextResponse.json(
-        { status: 'error', message: '请先配置有效的 DATABASE_URL' },
-        { status: 400 }
-      );
-    }
-
-    const isPostgres =
-      databaseUrl.startsWith('postgresql://') ||
-      databaseUrl.startsWith('postgres://');
-
-    if (isPostgres && process.env.VERCEL) {
-      // For Vercel PostgreSQL, tables are already created via direct SQL
+    if (result.ok) {
       return NextResponse.json({
         status: 'ok',
-        message: 'PostgreSQL 数据库已初始化 (bijing_novel schema)',
+        message: result.message,
       });
+    } else {
+      return NextResponse.json(
+        {
+          status: 'error',
+          message: result.message,
+        },
+        { status: 500 }
+      );
     }
-
-    // For local SQLite
-    execSync('npx prisma db push --skip-generate 2>&1', { stdio: 'pipe' });
-
-    return NextResponse.json({
-      status: 'ok',
-      message: '数据库 schema 同步成功',
-    });
   } catch (error) {
     console.error('[DB Setup] Error:', error);
     return NextResponse.json(
