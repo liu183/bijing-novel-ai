@@ -1,7 +1,7 @@
 // ============================================================================
 // 笔境 AI - Database Client
 // 本地开发: SQLite (Prisma Client)
-// Vercel 部署: PostgreSQL (Supabase) via direct pg connection
+// Vercel 部署: PostgreSQL (Supabase) via direct connection
 // ============================================================================
 
 import { PrismaClient } from '@prisma/client';
@@ -38,8 +38,7 @@ function getDatabaseUrl(): string {
  * 创建 PrismaClient 实例
  *
  * - 本地开发: 使用 SQLite，标准 Prisma Client
- * - Vercel 部署: 使用 PostgreSQL (Supabase)，直接连接（pgbouncer pooling）
- *   数据库使用 bijing_novel schema
+ * - Vercel 部署: 使用 PostgreSQL (Supabase)，直接连接
  */
 function createPrismaClient(): PrismaClient {
   const databaseUrl = getDatabaseUrl();
@@ -49,21 +48,12 @@ function createPrismaClient(): PrismaClient {
 
   // Vercel 生产环境使用 PostgreSQL
   if (isVercelProduction() && isPostgres) {
-    // 构建带 schema 的连接 URL
-    const url = new URL(databaseUrl);
-    const existingOptions = url.searchParams.get('options') || '';
-    const schemaOption = '-csearch_path=bijing_novel';
-    url.searchParams.set(
-      'options',
-      existingOptions ? `${existingOptions},${schemaOption}` : schemaOption
-    );
-
-    console.log('[DB] Using PostgreSQL (Supabase) with bijing_novel schema');
+    console.log('[DB] Using PostgreSQL (Supabase)');
 
     return new PrismaClient({
       datasources: {
         db: {
-          url: url.toString(),
+          url: databaseUrl,
         },
       },
       log: ['error'],
