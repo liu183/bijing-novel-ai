@@ -290,6 +290,12 @@ export function ModelSelector() {
                                 >
                                   {model.name}
                                 </span>
+                                {model.id === DEFAULT_MODEL_ID && (
+                                  <Badge className="text-[9px] px-1 py-0 h-4 gap-0.5 bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 font-medium">
+                                    <Sparkles className="size-2.5" />
+                                    推荐
+                                  </Badge>
+                                )}
                                 <Badge
                                   variant="secondary"
                                   className={`text-[9px] px-1 py-0 h-4 ${
@@ -346,7 +352,7 @@ export function ModelSelector() {
           {/* Footer */}
           <div className="px-4 py-2.5 flex items-center justify-between bg-muted/10">
             <p className="text-[10px] text-muted-foreground/60">
-              {ALL_MODELS.length} 个模型可选 · Nvidia NIM · 智谱 GLM
+              {ALL_MODELS.length} 个模型可选 · 默认: {getModelInfo(DEFAULT_MODEL_ID)?.name}
             </p>
             <Button
               variant="ghost"

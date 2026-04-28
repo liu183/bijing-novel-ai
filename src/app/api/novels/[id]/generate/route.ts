@@ -141,9 +141,9 @@ export async function POST(
     }
 
     // 针对不同错误类型返回更友好的提示
-    if (errorMsg.includes('NVIDIA_API_KEY') || errorMsg.includes('API Key')) {
+    if (errorMsg.includes('API_KEY') || errorMsg.includes('API Key') || errorMsg.includes('环境变量未设置')) {
       return NextResponse.json(
-        { error: 'AI 服务未配置，请先设置 NVIDIA_API_KEY 环境变量' },
+        { error: 'AI 服务未配置，请先设置对应的服务商 API Key 环境变量' },
         { status: 503 }
       );
     }
@@ -157,7 +157,7 @@ export async function POST(
 
     if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
       return NextResponse.json(
-        { error: 'AI 服务认证失败，请检查 NVIDIA_API_KEY 是否正确' },
+        { error: 'AI 服务认证失败，请检查 API Key 是否正确' },
         { status: 503 }
       );
     }

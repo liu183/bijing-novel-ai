@@ -258,6 +258,15 @@ const NVIDIA_MODELS: ModelInfo[] = [
 
 const GLM_MODELS: ModelInfo[] = [
   {
+    id: 'glm-4.5-air',
+    name: 'GLM-4.5-Air',
+    provider: '智谱GLM',
+    description: '智谱最新一代模型，性能卓越且性价比极高，推荐日常创作使用',
+    maxTokens: 128000,
+    category: 'balanced',
+    supportsFunctionCall: true,
+  },
+  {
     id: 'glm-4-plus',
     name: 'GLM-4-Plus',
     provider: '智谱GLM',
@@ -338,7 +347,7 @@ export const ALL_MODELS: ModelInfo[] = [...NVIDIA_MODELS, ...GLM_MODELS];
 export { NVIDIA_MODELS };
 
 /** 默认模型（推荐用于小说创作） */
-export const DEFAULT_MODEL_ID = 'glm-4-plus';
+export const DEFAULT_MODEL_ID = 'glm-4.5-air';
 
 /** 按类别分组模型 */
 export function getModelsByCategory() {
