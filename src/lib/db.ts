@@ -1,7 +1,7 @@
 // ============================================================================
 // 笔境 AI - Database Client
 // 本地开发: SQLite (Prisma Client)
-// Vercel 部署: PostgreSQL via Neon serverless driver
+// Vercel 部署: PostgreSQL (Supabase) via Neon serverless driver
 // ============================================================================
 
 import { PrismaClient } from '@prisma/client';
@@ -39,6 +39,7 @@ function getDatabaseUrl(): string {
  *
  * - 本地开发: 使用 SQLite，标准 Prisma Client
  * - Vercel 部署: 使用 PostgreSQL，通过 Neon serverless driver 连接
+ *   数据库使用 bijing_novel schema
  */
 function createPrismaClient(): PrismaClient {
   const databaseUrl = getDatabaseUrl();
@@ -46,21 +47,27 @@ function createPrismaClient(): PrismaClient {
     databaseUrl.startsWith('postgresql://') ||
     databaseUrl.startsWith('postgres://');
 
-  // Vercel 生产环境使用 PostgreSQL (Neon)
+  // Vercel 生产环境使用 PostgreSQL
   if (isVercelProduction() && isPostgres) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { neon } = require('@neondatabase/serverless');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaNeon } = require('@prisma/adapter-neon');
 
-    const sql = neon(databaseUrl);
+    // 构建带 schema 的连接 URL
+    const url = new URL(databaseUrl);
+    url.searchParams.set('options', '-csearch_path=bijing_novel');
+    const connectionString = url.toString();
+
+    const sql = neon(connectionString);
     const adapter = new PrismaNeon(sql);
 
-    console.log('[DB] Using Neon PostgreSQL (serverless)');
+    console.log('[DB] Using PostgreSQL (Supabase) with bijing_novel schema');
 
     return new PrismaClient({
       adapter,
-      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      datasourceUrl: connectionString,
+      log: ['error'],
     }) as PrismaClient;
   }
 
