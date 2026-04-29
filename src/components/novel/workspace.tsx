@@ -491,6 +491,16 @@ export function WorkspaceView() {
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
+      // '?' or 'h' opens shortcuts help
+      if (e.key === '?' || e.key === 'h') {
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          // Find and toggle the shortcuts help popover
+          const helpBtn = document.querySelector('[data-shortcuts-help]');
+          if (helpBtn) helpBtn.click();
+          return;
+        }
+      }
       if (e.key === 'e' || e.key === 'E') {
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
           e.preventDefault();
@@ -1012,7 +1022,7 @@ function StepContentPanel({
           {/* Keyboard Shortcuts Help */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" data-shortcuts-help>
                 <HelpCircle className="size-4" />
               </Button>
             </PopoverTrigger>

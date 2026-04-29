@@ -410,6 +410,28 @@ export function ReaderView() {
           </div>
         </div>
 
+        {/* Writing tips when no chapters */}
+        <div className="mx-auto max-w-md px-4 mb-8">
+          <div className="rounded-xl border-2 border-dashed border-amber-200 dark:border-amber-800/40 p-6 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 mx-auto mb-3">
+              <Sparkles className="size-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h3 className="font-semibold text-sm mb-2">开始你的创作之旅</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+              回到工作台，使用「生成步骤」功能，让 AI 引导你完成 12 步创作流程，然后就能在这里阅读和导出你的小说章节了。
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-900/20 dark:text-amber-400"
+              onClick={() => useAppStore.getState().setViewMode('workspace')}
+            >
+              <ArrowLeft className="size-3.5" />
+              返回工作台
+            </Button>
+          </div>
+        </div>
+
         {/* Generate Dialog */}
         <GenerateChapterDialog
           open={generateDialogOpen}

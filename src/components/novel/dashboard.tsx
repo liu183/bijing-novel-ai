@@ -27,6 +27,7 @@ import {
   Pencil,
   Search,
   Download,
+  FileType,
   FileType2,
   Bot,
   Settings2,
@@ -52,6 +53,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { exportNovelToDocx } from '@/lib/export-docx';
+import { exportNovelToPdf } from '@/lib/export-pdf';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
@@ -327,11 +329,11 @@ export function DashboardView() {
       <section className="mx-auto max-w-7xl px-4 -mt-6 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {stats.map((stat) => (
-            <Card
-              key={stat.label}
-              className="border-0 shadow-lg shadow-black/5 dark:shadow-black/20 py-4 gap-3"
-            >
-              <CardContent className="px-4 flex items-center gap-3">
+            <div key={stat.label} className="group relative" title={stat.secondary || `${stat.label}: ${stat.value}`}>
+              <Card
+                className="border-0 shadow-lg shadow-black/5 dark:shadow-black/20 py-4 gap-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+              >
+                <CardContent className="px-4 flex items-center gap-3">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stat.bgColor}`}>
                   <stat.icon className={`size-5 ${stat.iconColor}`} />
                 </div>
@@ -348,8 +350,9 @@ export function DashboardView() {
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           ))}
         </div>
       </section>
@@ -601,9 +604,11 @@ export function DashboardView() {
           ].map((feature, index) => (
             <div 
               key={feature.title} 
-              className="group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg transition-all duration-300 cursor-default"
+              className="group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg hover:border-amber-300/50 dark:hover:border-amber-700/30 transition-all duration-300 cursor-default overflow-hidden"
               style={{ animationDelay: `${index * 100}ms` }}
             >
+              {/* Decorative gradient line on top */}
+              <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
               <div className={`flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br ${feature.color} mb-3 shadow-md ${feature.shadowColor} transition-transform duration-300 group-hover:scale-110`}>
                 <feature.icon className="size-5 text-white" />
               </div>
@@ -673,6 +678,23 @@ function NovelCard({
     }
   };
 
+  const handleExportPdf = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting('pdf');
+    try {
+      const res = await fetch(`/api/novels/${novel.id}`);
+      if (!res.ok) {
+        toast.error('导出失败：无法获取小说数据');
+        return;
+      }
+      const data = await res.json();
+      await exportNovelToPdf(data, novel);
+      toast.success('PDF 导出成功');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <Card
       className="group cursor-pointer py-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60"
@@ -729,6 +751,11 @@ function NovelCard({
             <FileText className="size-3" />
             {novel._count?.chapters || 0} 章
           </span>
+          {novel.chapters && novel.chapters.length > 0 && (
+            <span className="text-[10px] text-muted-foreground/60">
+              · {Math.round(novel.chapters.reduce((s, c) => s + (c.wordCount || 0), 0)).toLocaleString()}字
+            </span>
+          )}
         </div>
       </CardContent>
 
@@ -764,6 +791,10 @@ function NovelCard({
               <DropdownMenuItem onClick={handleExportDocx}>
                 <FileType2 className="size-4" />
                 导出 DOCX
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdf}>
+                <FileType className="size-4" />
+                导出 PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
