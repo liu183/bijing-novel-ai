@@ -8,6 +8,12 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   BookOpen,
   ListChecks,
   FileText,
@@ -21,10 +27,16 @@ import {
   Pencil,
   Search,
   Download,
+  FileType2,
   Bot,
   Settings2,
+  Loader2,
+  CheckCircle2,
+  Zap,
+  Shield,
 } from 'lucide-react';
 import { EditNovelDialog } from './edit-novel-dialog';
+import { StatsChart } from './stats-chart';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +51,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { exportNovelToDocx } from '@/lib/export-docx';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
@@ -58,6 +71,52 @@ const genreColors: Record<string, string> = {
   '其他': 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
   '未分类': 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
 };
+
+// Shared TXT export logic
+async function exportNovelToTxt(data: { steps: { stepNumber: number; title: string; content: string }[]; chapters: { number: number; title: string; content: string }[] }, novel: NovelData) {
+  const sep = '='.repeat(40);
+  const dashSep = '-'.repeat(40);
+  let txt = '';
+  txt += `${sep}\n`;
+  txt += `  ${novel.title}\n`;
+  txt += `${sep}\n`;
+  txt += `题材: ${novel.genre} · 风格: ${novel.style}\n`;
+  txt += `目标字数: ${novel.targetWords}字\n`;
+  txt += `创建时间: ${novel.createdAt}\n`;
+  txt += `${dashSep}\n\n`;
+
+  // Steps section
+  txt += `【创作步骤】\n\n`;
+  if (data.steps && data.steps.length > 0) {
+    data.steps.forEach((step, idx) => {
+      txt += `=== 第${idx + 1}步: ${step.title || `步骤${step.stepNumber || idx + 1}`} ===\n`;
+      txt += `${step.content || '(无内容)'}\n\n`;
+    });
+  } else {
+    txt += '(暂无创作步骤)\n\n';
+  }
+
+  // Chapters section
+  txt += `【章节内容】\n\n`;
+  if (data.chapters && data.chapters.length > 0) {
+    data.chapters.forEach((ch) => {
+      txt += `--- 第${ch.number}章 ${ch.title} ---\n`;
+      txt += `${ch.content || '(无内容)'}\n\n`;
+    });
+  } else {
+    txt += '(暂无章节内容)\n\n';
+  }
+
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${novel.title}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export function DashboardView() {
   const novels = useAppStore((s) => s.novels);
@@ -126,7 +185,7 @@ export function DashboardView() {
     }
   };
 
-  const handleExportNovel = async (novel: NovelData) => {
+  const handleExportTxt = async (novel: NovelData) => {
     try {
       const res = await fetch(`/api/novels/${novel.id}`);
       if (!res.ok) {
@@ -134,53 +193,23 @@ export function DashboardView() {
         return;
       }
       const data = await res.json();
+      await exportNovelToTxt(data, novel);
+      toast.success('TXT 导出成功');
+    } catch {
+      toast.error('导出失败');
+    }
+  };
 
-      // Format as TXT
-      const sep = '='.repeat(40);
-      const dashSep = '-'.repeat(40);
-      let txt = '';
-      txt += `${sep}\n`;
-      txt += `  ${novel.title}\n`;
-      txt += `${sep}\n`;
-      txt += `题材: ${novel.genre} · 风格: ${novel.style}\n`;
-      txt += `目标字数: ${novel.targetWords}字\n`;
-      txt += `创建时间: ${novel.createdAt}\n`;
-      txt += `${dashSep}\n\n`;
-
-      // Steps section
-      txt += `【创作步骤】\n\n`;
-      if (data.steps && data.steps.length > 0) {
-        data.steps.forEach((step: { stepNumber: number; title: string; content: string }, idx: number) => {
-          txt += `=== 第${idx + 1}步: ${step.title || `步骤${step.stepNumber || idx + 1}`} ===\n`;
-          txt += `${step.content || '(无内容)'}\n\n`;
-        });
-      } else {
-        txt += '(暂无创作步骤)\n\n';
+  const handleExportDocx = async (novel: NovelData) => {
+    try {
+      const res = await fetch(`/api/novels/${novel.id}`);
+      if (!res.ok) {
+        toast.error('导出失败：无法获取小说数据');
+        return;
       }
-
-      // Chapters section
-      txt += `【章节内容】\n\n`;
-      if (data.chapters && data.chapters.length > 0) {
-        data.chapters.forEach((ch: { number: number; title: string; content: string }) => {
-          txt += `--- 第${ch.number}章 ${ch.title} ---\n`;
-          txt += `${ch.content || '(无内容)'}\n\n`;
-        });
-      } else {
-        txt += '(暂无章节内容)\n\n';
-      }
-
-      // Download
-      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${novel.title}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success('导出成功');
+      const data = await res.json();
+      await exportNovelToDocx(data, novel);
+      toast.success('DOCX 导出成功');
     } catch {
       toast.error('导出失败');
     }
@@ -270,10 +299,11 @@ export function DashboardView() {
               <Button
                 onClick={() => setCreateDialogOpen(true)}
                 size="lg"
-                className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 hover:shadow-xl hover:shadow-amber-500/30 transition-all"
+                className="relative gap-2 overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 hover:shadow-xl hover:shadow-amber-500/30 transition-all"
               >
-                <Plus className="size-4" />
+                <Plus className="size-4 relative z-10" />
                 开始创作
+                <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" />
               </Button>
               <Button variant="outline" size="lg" className="gap-2" onClick={() => {
                 const el = document.getElementById('novels-section');
@@ -282,6 +312,12 @@ export function DashboardView() {
                 了解更多
                 <ArrowRight className="size-4" />
               </Button>
+            </div>
+            {/* Trust indicators */}
+            <div className="mt-5 flex items-center justify-center gap-4 text-xs text-muted-foreground/70">
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-emerald-500" /> 12步智能引导</span>
+              <span className="flex items-center gap-1.5"><Zap className="size-3.5 text-amber-500" /> AI 秒级响应</span>
+              <span className="flex items-center gap-1.5"><Shield className="size-3.5 text-blue-500" /> 数据安全</span>
             </div>
           </div>
         </div>
@@ -317,6 +353,11 @@ export function DashboardView() {
           ))}
         </div>
       </section>
+
+      {/* Writing Statistics Charts */}
+      {!loading && novels.length > 0 && (
+        <StatsChart novels={novels} />
+      )}
 
       {/* Novel Projects Section */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -496,7 +537,8 @@ export function DashboardView() {
                 onClick={() => handleNovelClick(novel)}
                 onDelete={() => handleDeleteNovel(novel.id)}
                 onEdit={() => handleEditNovel(novel)}
-                onExport={() => handleExportNovel(novel)}
+                onExportTxt={() => handleExportTxt(novel)}
+                onExportDocx={() => handleExportDocx(novel)}
               />
             ))}
           </div>
@@ -515,6 +557,28 @@ export function DashboardView() {
           </div>
         )}
       </section>
+
+      {/* Footer */}
+      <footer className="mt-12 border-t bg-muted/20">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
+                <Sparkles className="size-4 text-white" />
+              </div>
+              <span className="font-semibold text-sm">笔境 AI</span>
+              <span className="text-xs text-muted-foreground">v1.0</span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>智能网文创作平台</span>
+              <span>·</span>
+              <span>Powered by GLM & NVIDIA</span>
+              <span>·</span>
+              <span>&copy; 2026 笔境 AI</span>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       {/* Feature Highlights */}
       <section className="mt-12 mb-8">
@@ -553,23 +617,46 @@ function NovelCard({
   onClick,
   onDelete,
   onEdit,
-  onExport,
+  onExportTxt,
+  onExportDocx,
 }: {
   novel: NovelData;
   onClick: () => void;
   onDelete: () => void;
   onEdit: () => void;
-  onExport: () => void;
+  onExportTxt: () => void;
+  onExportDocx: () => void;
 }) {
   const progress = Math.round((novel.currentStep / 12) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
   const genreColor = genreColors[novel.genre] || genreColors['未分类'];
+  const [exporting, setExporting] = React.useState<string | null>(null);
 
   const formatDate = (dateStr: string) => {
     try {
       return format(new Date(dateStr), 'yyyy-MM-dd', { locale: zhCN });
     } catch {
       return dateStr;
+    }
+  };
+
+  const handleExportTxt = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting('txt');
+    try {
+      await onExportTxt();
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportDocx = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting('docx');
+    try {
+      await onExportDocx();
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -639,17 +726,34 @@ function NovelCard({
         </span>
 
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
-            onClick={(e) => {
-              e.stopPropagation();
-              onExport();
-            }}
-          >
-            <Download className="size-3.5" />
-          </Button>
+          {/* Export Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
+                onClick={(e) => e.stopPropagation()}
+                disabled={!!exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Download className="size-3.5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={handleExportTxt}>
+                <FileText className="size-4" />
+                导出 TXT
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportDocx}>
+                <FileType2 className="size-4" />
+                导出 DOCX
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
             variant="ghost"

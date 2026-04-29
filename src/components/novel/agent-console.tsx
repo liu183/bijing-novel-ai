@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { toast } from 'sonner';
 import { useAppStore, type AgentActivityData } from '@/store/app-store';
 import { AGENTS, getAgent, getSkillsForAgent, getCategoriesForAgent, type AgentRole, type AgentDefinition, type SkillDefinition } from '@/lib/agents';
 import { Button } from '@/components/ui/button';
@@ -782,7 +783,11 @@ const AgentHeaderBar = memo(function AgentHeaderBar({
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 hover:opacity-80 transition-opacity cursor-pointer group">
               <div className={`relative`}>
-                <Avatar className="h-9 w-9">
+                {/* Animated glow ring when thinking or working */}
+                {(currentStatus === 'thinking' || currentStatus === 'working') && (
+                  <div className={`absolute -inset-1 rounded-full ${agentColors.bg} animate-avatar-glow`} />
+                )}
+                <Avatar className="h-9 w-9 relative">
                   <AvatarFallback className={`text-base ${agentColors.lightBg} ${agentColors.text} font-semibold`}>
                     {currentAgent.avatar}
                   </AvatarFallback>
@@ -1069,12 +1074,22 @@ const ActivityEntry = memo(function ActivityEntry({
         transition={{ duration: 0.3 }}
         className="flex justify-start"
       >
-        <div className="flex items-start gap-2.5 max-w-[90%] sm:max-w-[80%]">
+        <div className="group/msg flex items-start gap-2.5 max-w-[90%] sm:max-w-[80%] rounded-xl px-2 py-1 -mx-2 hover:bg-muted/30 transition-colors">
           <AgentAvatar avatar={activity.agentAvatar} colors={activityColors} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`text-[11px] font-medium ${activityColors.text}`}>{activity.agentName}</span>
               <span className="text-[10px] text-muted-foreground/50">{formatTimestamp(activity.timestamp)}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(activity.content);
+                  toast.success('已复制到剪贴板');
+                }}
+                className="ml-auto opacity-0 group-hover/msg:opacity-100 p-1 rounded hover:bg-muted/50 text-muted-foreground/50 hover:text-foreground transition-all"
+                title="复制消息"
+              >
+                <Copy className="size-3" />
+              </button>
             </div>
             <MessageBubbleWithCopy content={activity.content} colors={activityColors} />
           </div>
