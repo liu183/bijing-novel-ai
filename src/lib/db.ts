@@ -66,3 +66,36 @@ export async function checkDatabaseHealth() {
     };
   }
 }
+
+export async function autoInitDatabase() {
+  const url = getDatabaseUrl();
+  const isPostgres = isPostgresUrl(url);
+
+  try {
+    const { execSync } = await import('node:child_process');
+
+    if (isPostgres) {
+      const directUrl = process.env.POSTGRES_URL_NON_POOLING || url;
+      const result = execSync(
+        `DATABASE_URL="${directUrl}" npx prisma db push --skip-generate --accept-data-loss --schema=prisma/schema.postgres.prisma 2>&1`,
+        {
+          stdio: 'pipe',
+          env: { ...process.env, DATABASE_URL: directUrl },
+          timeout: 30000,
+        }
+      );
+      return {
+        ok: true,
+        message: `PostgreSQL schema 同步成功: ${result.toString().slice(0, 200)}`,
+      };
+    }
+
+    execSync('npx prisma db push --skip-generate 2>&1', { stdio: 'pipe' });
+    return { ok: true, message: 'SQLite schema 同步成功' };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Schema 同步失败: ${error instanceof Error ? error.message : '未知错误'}`,
+    };
+  }
+}
