@@ -74,6 +74,10 @@ interface AppState {
   currentNovel: NovelData | null;
   setCurrentNovel: (novel: NovelData | null) => void;
 
+  // Last opened novel (persisted)
+  lastOpenedNovelId: string | null;
+  setLastOpenedNovelId: (id: string | null) => void;
+
   // Current step
   currentStep: number;
   setCurrentStep: (step: number) => void;
@@ -109,6 +113,10 @@ interface AppState {
   generateChapterNumber: number;
   setGenerateChapterNumber: (num: number) => void;
 
+  // Current reading chapter (for breadcrumb)
+  currentChapterNumber: number;
+  setCurrentChapterNumber: (num: number) => void;
+
   // Agent system
   activeAgent: AgentRole | null;
   setActiveAgent: (agent: AgentRole | null) => void;
@@ -140,6 +148,8 @@ export const useAppStore = create<AppState>()(
       // Current novel
       currentNovel: null,
       setCurrentNovel: (novel) => set({ currentNovel: novel }),
+      lastOpenedNovelId: null,
+      setLastOpenedNovelId: (id) => set({ lastOpenedNovelId: id }),
 
       // Current step
       currentStep: 1,
@@ -177,6 +187,10 @@ export const useAppStore = create<AppState>()(
       generateChapterNumber: 1,
       setGenerateChapterNumber: (num) => set({ generateChapterNumber: num }),
 
+      // Current reading chapter
+      currentChapterNumber: 1,
+      setCurrentChapterNumber: (num) => set({ currentChapterNumber: num }),
+
       // Agent system
       activeAgent: 'director' as AgentRole,
       setActiveAgent: (agent) => set({ activeAgent: agent }),
@@ -201,6 +215,7 @@ export const useAppStore = create<AppState>()(
       name: 'bijing-novel-ai-settings',
       partialize: (state) => ({
         selectedModel: state.selectedModel,
+        lastOpenedNovelId: state.lastOpenedNovelId,
       }),
     }
   )

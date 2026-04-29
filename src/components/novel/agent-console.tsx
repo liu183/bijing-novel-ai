@@ -50,6 +50,16 @@ import {
   Check,
   Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import ReactMarkdown from 'react-markdown';
@@ -226,6 +236,8 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const [skillDialogParams, setSkillDialogParams] = useState<Record<string, string>>({});
   const [isSending, setIsSending] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   const activityEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -242,6 +254,11 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const statusInfo = statusConfig[currentStatus];
   const currentSkills = activeAgent ? getSkillsForAgent(activeAgent) : [];
   const skillCategories = activeAgent ? getCategoriesForAgent(activeAgent) : [];
+
+  // Filter activities by active agent unless showAllActivities
+  const displayedActivities = showAllActivities
+    ? agentActivities
+    : agentActivities.filter((a) => a.agentId === activeAgent || a.agentId === 'user');
 
   // Auto-scroll activity log to bottom
   useEffect(() => {
@@ -609,13 +626,33 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
       <div className="flex-1 overflow-hidden relative">
         {/* Clear activities button */}
         {agentActivities.length > 0 && (
-          <button
-            onClick={() => setAgentActivities([])}
-            className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
-          >
-            <Trash2 className="size-3" />
-            清空活动记录
-          </button>
+          <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <button
+                className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Trash2 className="size-3" />
+                清空活动记录
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确定要清空所有活动记录吗？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  此操作不可撤销。所有当前对话记录将被永久删除。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => { setAgentActivities([]); setClearDialogOpen(false); }}
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                >
+                  确认清空
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
         <ScrollArea className="h-full">
           <div className="px-3 sm:px-4 py-3 space-y-2 max-w-4xl mx-auto">
@@ -659,9 +696,35 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
               />
             )}
 
+            {/* Activity filter toggle */}
+            {agentActivities.length > 0 && (
+              <div className="flex items-center gap-1 mb-1">
+                <button
+                  onClick={() => setShowAllActivities(false)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                    !showAllActivities
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                  }`}
+                >
+                  当前智能体
+                </button>
+                <button
+                  onClick={() => setShowAllActivities(true)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                    showAllActivities
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                  }`}
+                >
+                  全部
+                </button>
+              </div>
+            )}
+
             {/* Activity entries */}
             <AnimatePresence initial={false}>
-              {agentActivities.map((activity) => (
+              {displayedActivities.map((activity) => (
                 <ActivityEntry
                   key={activity.id}
                   activity={activity}

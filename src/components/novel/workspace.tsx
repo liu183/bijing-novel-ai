@@ -82,6 +82,7 @@ import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
+import { streamSSE, type SSEMessage } from '@/lib/sse-parser';
 
 // Icon mapping
 const iconMap: Record<string, React.ElementType> = {
@@ -161,10 +162,15 @@ export function WorkspaceView() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [switchStepDialogOpen, setSwitchStepDialogOpen] = useState(false);
+  const [pendingStep, setPendingStep] = useState<number | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const originalContentRef = useRef<string>('');
+
+  // Dirty state: true when editing and content has changed
+  const isDirty = editing && editContent !== originalContentRef.current;
 
   // Fetch novel data with steps when entering workspace
   useEffect(() => {
@@ -212,6 +218,12 @@ export function WorkspaceView() {
 
   // Handle step click
   const handleStepClick = (stepNumber: number) => {
+    if (isDirty) {
+      // Confirm before switching away from unsaved changes
+      setPendingStep(stepNumber);
+      setSwitchStepDialogOpen(true);
+      return;
+    }
     setCurrentStep(stepNumber);
     setEditing(false);
     // On mobile, switch to content tab
@@ -431,40 +443,18 @@ export function WorkspaceView() {
         throw new Error('Chat request failed');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
       let fullContent = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const jsonStr = trimmed.slice(6);
-          try {
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.type === 'content') {
-              fullContent += parsed.data;
-              // Update the assistant message in store
-              const msgs = useAppStore.getState().chatMessages.map((m) =>
-                m.id === assistantId ? { ...m, content: fullContent } : m
-              );
-              useAppStore.getState().setChatMessages(msgs);
-            } else if (parsed.type === 'error') {
-              toast.error(parsed.data || 'AI 回复出错');
-            }
-          } catch {
-            // Skip malformed JSON
-          }
+      for await (const msg of streamSSE(response)) {
+        if (msg.type === 'content') {
+          fullContent += msg.data;
+          // Update the assistant message in store
+          const msgs = useAppStore.getState().chatMessages.map((m) =>
+            m.id === assistantId ? { ...m, content: fullContent } : m
+          );
+          useAppStore.getState().setChatMessages(msgs);
+        } else if (msg.type === 'error') {
+          toast.error(msg.data || 'AI 回复出错');
         }
       }
     } catch (error) {
@@ -489,6 +479,8 @@ export function WorkspaceView() {
     if (!currentNovel) return;
     const totalSteps = STEPS.length;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle when workspace is the active view
+      if (useAppStore.getState().viewMode !== 'workspace') return;
       // Don't navigate when typing in inputs/textareas
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
@@ -619,6 +611,7 @@ export function WorkspaceView() {
               editContent={editContent}
               saving={saving}
               isGenerating={isGenerating}
+              isDirty={isDirty}
               currentStep={currentStep}
               onEditToggle={handleEditToggle}
               onEditContentChange={setEditContent}
@@ -712,6 +705,7 @@ export function WorkspaceView() {
                   editContent={editContent}
                   saving={saving}
                   isGenerating={isGenerating}
+                  isDirty={isDirty}
                   currentStep={currentStep}
                   onEditToggle={handleEditToggle}
                   onEditContentChange={setEditContent}
@@ -808,6 +802,35 @@ export function WorkspaceView() {
             <AlertDialogCancel>继续编辑</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setEditing(false); setDiscardDialogOpen(false); }}>
               放弃修改
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Switch Step with Unsaved Changes Confirmation Dialog */}
+      <AlertDialog open={switchStepDialogOpen} onOpenChange={setSwitchStepDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>有未保存的修改</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前步骤有未保存的修改内容。切换步骤将丢失这些修改，确定要继续吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingStep(null)}>继续编辑</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setSwitchStepDialogOpen(false);
+                if (pendingStep !== null) {
+                  setCurrentStep(pendingStep);
+                  setEditing(false);
+                  setMobileTab('content');
+                }
+                setPendingStep(null);
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              放弃修改并切换
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -999,6 +1022,7 @@ function StepContentPanel({
   editContent,
   saving,
   isGenerating,
+  isDirty,
   currentStep,
   onEditToggle,
   onEditContentChange,
@@ -1016,6 +1040,7 @@ function StepContentPanel({
   editContent: string;
   saving: boolean;
   isGenerating: boolean;
+  isDirty: boolean;
   currentStep: number;
   onEditToggle: () => void;
   onEditContentChange: (val: string) => void;
@@ -1048,6 +1073,11 @@ function StepContentPanel({
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border-0">
                     <Lock className="size-2.5 mr-0.5" />
                     已锁定
+                  </Badge>
+                )}
+                {isDirty && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border-0 animate-pulse">
+                    ● 未保存
                   </Badge>
                 )}
               </div>
@@ -1414,13 +1444,13 @@ function ChatPanel({
             );
           })}
 
-          {isChatLoading && (
+          {isChatLoading && !messages[messages.length - 1]?.content && (
             <div className="flex justify-start">
               <div className="bg-muted/80 dark:bg-muted/40 rounded-xl rounded-bl-sm px-4 py-3">
                 <div className="flex items-center gap-1.5">
-                  <div className="size-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0ms]" />
-                  <div className="size-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:150ms]" />
-                  <div className="size-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:300ms]" />
+                  <div className="size-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="size-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="size-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import { useAppStore, type NovelData } from '@/store/app-store';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,6 @@ import {
   Trash2,
   ArrowRight,
   Calendar,
-  Clock,
   Pencil,
   Search,
   Download,
@@ -35,7 +34,11 @@ import {
   CheckCircle2,
   Zap,
   Shield,
+  Copy,
+  BookMarked,
+  Wand2,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { EditNovelDialog } from './edit-novel-dialog';
 import { StatsChart } from './stats-chart';
 import {
@@ -62,6 +65,31 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   completed: { label: '已完成', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' },
   archived: { label: '已归档', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500' },
 };
+
+// Extract helper functions outside the component for stability
+function formatDate(dateStr: string): string {
+  try {
+    return format(new Date(dateStr), 'yyyy-MM-dd', { locale: zhCN });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatDateTime(dateStr: string): string {
+  try {
+    return format(new Date(dateStr), 'yyyy-MM-dd HH:mm', { locale: zhCN });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatRelativeTime(dateStr: string): string {
+  try {
+    return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: zhCN });
+  } catch {
+    return formatDate(dateStr);
+  }
+}
 
 
 
@@ -117,6 +145,8 @@ export function DashboardView() {
   const setCurrentNovel = useAppStore((s) => s.setCurrentNovel);
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  const setLastOpenedNovelId = useAppStore((s) => s.setLastOpenedNovelId);
+  const lastOpenedNovelId = useAppStore((s) => s.lastOpenedNovelId);
   const [loading, setLoading] = useState(true);
   const [editingNovel, setEditingNovel] = useState<NovelData | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -159,12 +189,13 @@ export function DashboardView() {
     fetchNovels();
   }, [fetchNovels]);
 
-  const handleNovelClick = (novel: NovelData) => {
+  const handleNovelClick = useCallback((novel: NovelData) => {
     setCurrentNovel(novel);
+    setLastOpenedNovelId(novel.id);
     setViewMode('workspace');
-  };
+  }, [setCurrentNovel, setLastOpenedNovelId, setViewMode]);
 
-  const handleDeleteNovel = async (id: string) => {
+  const handleDeleteNovel = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/novels/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -176,9 +207,9 @@ export function DashboardView() {
     } catch {
       toast.error('删除失败');
     }
-  };
+  }, [fetchNovels]);
 
-  const handleExportTxt = async (novel: NovelData) => {
+  const handleExportTxt = useCallback(async (novel: NovelData) => {
     try {
       const res = await fetch(`/api/novels/${novel.id}`);
       if (!res.ok) {
@@ -191,9 +222,9 @@ export function DashboardView() {
     } catch {
       toast.error('导出失败');
     }
-  };
+  }, []);
 
-  const handleExportDocx = async (novel: NovelData) => {
+  const handleExportDocx = useCallback(async (novel: NovelData) => {
     try {
       const res = await fetch(`/api/novels/${novel.id}`);
       if (!res.ok) {
@@ -206,7 +237,22 @@ export function DashboardView() {
     } catch {
       toast.error('导出失败');
     }
-  };
+  }, []);
+
+  const handleDuplicateNovel = useCallback(async (novel: NovelData) => {
+    try {
+      const res = await fetch(`/api/novels/${novel.id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const duplicated = await res.json();
+        toast.success(`已复制「${novel.title}」为「${duplicated.title}」`);
+        fetchNovels();
+      } else {
+        toast.error('复制失败');
+      }
+    } catch {
+      toast.error('复制失败');
+    }
+  }, [fetchNovels]);
 
   // Compute unique genres
   const allGenres = Array.from(new Set(novels.map((n) => n.genre))).filter(Boolean);
@@ -333,7 +379,7 @@ export function DashboardView() {
                   {loading ? (
                     <Skeleton className="h-6 w-12 mt-0.5" />
                   ) : (
-                    <div>
+                    <div className="animate-count-up">
                       <p className="text-xl font-bold tracking-tight">{stat.value}</p>
                       {stat.secondary && (
                         <p className="text-[10px] text-muted-foreground mt-0.5">{stat.secondary}</p>
@@ -373,14 +419,17 @@ export function DashboardView() {
 
         {/* Continue Editing Card */}
         {!loading && novels.length > 0 && (() => {
-          const recentNovel = [...novels].sort((a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )[0];
+          const recentNovel = lastOpenedNovelId
+            ? novels.find((n) => n.id === lastOpenedNovelId)
+            : [...novels].sort((a, b) =>
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+              )[0];
+          if (!recentNovel) return null;
           const completedSteps = (recentNovel.steps || []).filter(
             s => s.status === 'completed' || s.status === 'locked'
           ).length;
           return (
-            <div onClick={() => { setCurrentNovel(recentNovel); setViewMode('workspace'); }}
+            <div onClick={() => { setCurrentNovel(recentNovel); setLastOpenedNovelId(recentNovel.id); setViewMode('workspace'); }}
               className="relative overflow-hidden rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 p-5 cursor-pointer hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all group mb-6">
               {/* decorative elements */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-200/30 to-transparent rounded-bl-full" />
@@ -485,19 +534,37 @@ export function DashboardView() {
         {!loading && novels.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-16 px-4">
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 mb-6">
-              <BookOpen className="size-10 text-amber-600 dark:text-amber-400" />
+              <BookMarked className="size-10 text-amber-600 dark:text-amber-400" />
             </div>
-            <h3 className="text-lg font-semibold">还没有小说项目</h3>
+            <h3 className="text-lg font-semibold">还没有小说？</h3>
             <p className="mt-2 max-w-md text-center text-sm text-muted-foreground">
-              开始您的网文创作之旅吧！AI 将辅助您从灵感到完稿的每一步。
+              点击上方「新建小说」开始创作！AI 将辅助您从灵感到完稿的每一步。
             </p>
             <Button
               onClick={() => setCreateDialogOpen(true)}
               className="mt-6 gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md hover:from-amber-600 hover:to-orange-700 hover:shadow-lg transition-all"
             >
               <Plus className="size-4" />
-              创建第一个小说项目
+              新建小说
             </Button>
+            {/* Template suggestions */}
+            <div className="mt-8 text-center">
+              <p className="text-xs text-muted-foreground mb-3">试试模板：</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {['穿越重生', '修仙玄幻', '悬疑推理'].map((template) => (
+                  <button
+                    key={template}
+                    onClick={() => {
+                      setCreateDialogOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border/60 text-muted-foreground hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-300 dark:hover:border-amber-700 transition-all"
+                  >
+                    <Wand2 className="size-3" />
+                    {template}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -529,26 +596,26 @@ export function DashboardView() {
               <NovelCard
                 key={novel.id}
                 novel={novel}
-                onClick={() => handleNovelClick(novel)}
-                onDelete={() => handleDeleteNovel(novel.id)}
-                onEdit={() => handleEditNovel(novel)}
-                onExportTxt={() => handleExportTxt(novel)}
-                onExportDocx={() => handleExportDocx(novel)}
+                onClick={handleNovelClick}
+                onDelete={handleDeleteNovel}
+                onEdit={handleEditNovel}
+                onExportTxt={handleExportTxt}
+                onExportDocx={handleExportDocx}
+                onDuplicate={handleDuplicateNovel}
               />
             ))}
           </div>
         )}
 
-        {/* Mobile FAB */}
-        {!loading && filteredNovels.length > 0 && (
-          <div className="fixed bottom-6 right-6 sm:hidden z-40">
-            <Button
+        {/* Mobile FAB - always visible on small screens */}
+        {!loading && (
+          <div className="fixed bottom-6 right-6 sm:hidden z-50">
+            <button
               onClick={() => setCreateDialogOpen(true)}
-              size="icon"
-              className="h-12 w-12 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30 hover:from-amber-600 hover:to-orange-700"
+              className="w-14 h-14 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
             >
-              <Plus className="size-5" />
-            </Button>
+              <Plus className="w-6 h-6" />
+            </button>
           </div>
         )}
       </section>
@@ -561,15 +628,18 @@ export function DashboardView() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { icon: Sparkles, title: 'AI 智能生成', desc: `${TOTAL_STEPS}步引导式创作，AI辅助从灵感到完稿`, color: 'from-amber-500 to-orange-500', shadowColor: 'shadow-amber-500/20', floatClass: 'animate-float-1' },
-            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500', shadowColor: 'shadow-blue-500/20', floatClass: 'animate-float-2' },
-            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500', shadowColor: 'shadow-emerald-500/20', floatClass: 'animate-float-3' },
-            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500', shadowColor: 'shadow-violet-500/20', floatClass: 'animate-float-4' },
+            { icon: Sparkles, title: 'AI 智能生成', desc: `${TOTAL_STEPS}步引导式创作，AI辅助从灵感到完稿`, color: 'from-amber-500 to-orange-500', shadowColor: 'shadow-amber-500/20' },
+            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500', shadowColor: 'shadow-blue-500/20' },
+            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500', shadowColor: 'shadow-emerald-500/20' },
+            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500', shadowColor: 'shadow-violet-500/20' },
           ].map((feature, index) => (
-            <div 
-              key={feature.title} 
-              className={`group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg hover:border-amber-300/50 dark:hover:border-amber-700/30 transition-all duration-300 cursor-default overflow-hidden ${feature.floatClass}`}
-              style={{ animationDelay: `${index * 0.5}s` }}
+            <motion.div
+              key={feature.title}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg hover:border-amber-300/50 dark:hover:border-amber-700/30 transition-all duration-300 cursor-default overflow-hidden"
             >
               {/* Decorative gradient line on top */}
               <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
@@ -578,7 +648,7 @@ export function DashboardView() {
               </div>
               <h3 className="font-semibold text-sm mb-1.5 group-hover:text-foreground transition-colors">{feature.title}</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
-            </div>
+            </motion.div>
           ))}
         </div>
       </section>
@@ -621,47 +691,33 @@ export function DashboardView() {
   );
 }
 
-function NovelCard({
+const NovelCard = memo(function NovelCard({
   novel,
   onClick,
   onDelete,
   onEdit,
   onExportTxt,
   onExportDocx,
+  onDuplicate,
 }: {
   novel: NovelData;
-  onClick: () => void;
-  onDelete: () => void;
-  onEdit: () => void;
-  onExportTxt: () => void;
-  onExportDocx: () => void;
+  onClick: (novel: NovelData) => void;
+  onDelete: (id: string) => void;
+  onEdit: (novel: NovelData) => void;
+  onExportTxt: (novel: NovelData) => void;
+  onExportDocx: (novel: NovelData) => void;
+  onDuplicate: (novel: NovelData) => void;
 }) {
   const progress = Math.round((novel.currentStep / TOTAL_STEPS) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
   const genreColor = genreColors[novel.genre] || genreColors['未分类'];
   const [exporting, setExporting] = React.useState<string | null>(null);
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'yyyy-MM-dd', { locale: zhCN });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const formatDateTime = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'yyyy-MM-dd HH:mm', { locale: zhCN });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const handleExportTxt = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setExporting('txt');
     try {
-      await onExportTxt();
+      await onExportTxt(novel);
     } finally {
       setExporting(null);
     }
@@ -671,7 +727,7 @@ function NovelCard({
     e.stopPropagation();
     setExporting('docx');
     try {
-      await onExportDocx();
+      await onExportDocx(novel);
     } finally {
       setExporting(null);
     }
@@ -694,10 +750,15 @@ function NovelCard({
     }
   };
 
+  const handleDuplicate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDuplicate(novel);
+  };
+
   return (
     <Card
       className="group cursor-pointer py-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60"
-      onClick={onClick}
+      onClick={() => onClick(novel)}
     >
       <CardHeader className="px-5 pb-2">
         <div className="flex items-start justify-between gap-2">
@@ -763,13 +824,7 @@ function NovelCard({
           title={formatDateTime(novel.createdAt)}
         >
           <Calendar className="size-3" />
-          {(() => {
-            try {
-              return formatDistanceToNow(new Date(novel.createdAt), { addSuffix: true, locale: zhCN });
-            } catch {
-              return formatDate(novel.createdAt);
-            }
-          })()}
+          {formatRelativeTime(novel.createdAt)}
         </span>
 
         <div className="flex items-center gap-1">
@@ -779,7 +834,7 @@ function NovelCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
+                className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
                 onClick={(e) => e.stopPropagation()}
                 disabled={!!exporting}
               >
@@ -809,13 +864,22 @@ function NovelCard({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:text-amber-600 dark:hover:text-amber-400"
+            className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:text-amber-600 dark:hover:text-amber-400"
             onClick={(e) => {
               e.stopPropagation();
-              onEdit();
+              onEdit(novel);
             }}
           >
             <Pencil className="size-3.5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={handleDuplicate}
+          >
+            <Copy className="size-3.5" />
           </Button>
 
           <AlertDialog>
@@ -823,7 +887,7 @@ function NovelCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
+              className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
               onClick={(e) => e.stopPropagation()}
             >
               <Trash2 className="size-3.5" />
@@ -839,7 +903,7 @@ function NovelCard({
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
               <AlertDialogAction
-                onClick={onDelete}
+                onClick={() => onDelete(novel.id)}
                 className="bg-destructive text-white hover:bg-destructive/90"
               >
                 确认删除
@@ -851,4 +915,4 @@ function NovelCard({
       </CardFooter>
     </Card>
   );
-}
+});

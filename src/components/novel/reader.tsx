@@ -60,6 +60,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { streamSSE } from '@/lib/sse-parser';
 
 // ─── Reader Preferences ───
 interface ReaderPrefs {
@@ -129,6 +130,7 @@ export function ReaderView() {
   const generateChapterNumber = useAppStore((s) => s.generateChapterNumber);
   const setGenerateChapterNumber = useAppStore((s) => s.setGenerateChapterNumber);
   const selectedModel = useAppStore((s) => s.selectedModel);
+  const setCurrentChapterNumber = useAppStore((s) => s.setCurrentChapterNumber);
 
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
@@ -161,13 +163,54 @@ export function ReaderView() {
   const isFirstChapter = currentChapterIndex === 0;
   const isLastChapter = currentChapterIndex === chapters.length - 1;
 
-  // Reset chapter index when novel changes
+  // Sync current chapter number to store for breadcrumb
   useEffect(() => {
-    setCurrentChapterIndex(0);
+    if (currentChapter) {
+      setCurrentChapterNumber(currentChapter.number);
+    }
+  }, [currentChapter, setCurrentChapterNumber]);
+
+  // Reset chapter index when novel changes — restore saved reading position
+  useEffect(() => {
     setContentKey((k) => k + 1);
     setScrollProgress(0);
     setIsEditingContent(false);
+
+    if (!currentNovel?.id) {
+      setCurrentChapterIndex(0);
+      return;
+    }
+
+    // Try to restore reading position from localStorage
+    try {
+      const saved = localStorage.getItem(`reader-pos-${currentNovel.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const chapters = currentNovel.chapters || [];
+        // Validate the saved index is still within bounds
+        if (typeof parsed.chapter === 'number' && parsed.chapter < chapters.length) {
+          setCurrentChapterIndex(parsed.chapter);
+          return;
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+    setCurrentChapterIndex(0);
   }, [currentNovel?.id]);
+
+  // Save reading position to localStorage when chapter index changes
+  useEffect(() => {
+    if (!currentNovel?.id) return;
+    try {
+      localStorage.setItem(`reader-pos-${currentNovel.id}`, JSON.stringify({
+        chapter: currentChapterIndex,
+        timestamp: Date.now(),
+      }));
+    } catch {
+      // ignore storage errors
+    }
+  }, [currentChapterIndex, currentNovel?.id]);
 
   // Scroll progress tracking
   useEffect(() => {
@@ -261,36 +304,14 @@ export function ReaderView() {
         throw new Error(data.error || '流式生成请求失败');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
       let fullContent = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const jsonStr = trimmed.slice(6);
-          try {
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.type === 'content') {
-              fullContent += parsed.data;
-              setStreamContent(fullContent);
-            } else if (parsed.type === 'error') {
-              toast.error(parsed.data || '流式生成出错');
-            }
-          } catch {
-            // Skip malformed JSON
-          }
+      for await (const msg of streamSSE(response)) {
+        if (msg.type === 'content') {
+          fullContent += msg.data;
+          setStreamContent(fullContent);
+        } else if (msg.type === 'error') {
+          toast.error(msg.data || '流式生成出错');
         }
       }
 
@@ -451,6 +472,8 @@ export function ReaderView() {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Only handle when reader is the active view
+      if (useAppStore.getState().viewMode !== 'reader') return;
       // Only handle when not typing in input
       if (
         e.target instanceof HTMLInputElement ||
@@ -799,8 +822,15 @@ export function ReaderView() {
         {/* Scroll Progress Bar */}
         <div className="sticky top-0 z-10 h-[2px] w-full bg-transparent">
           <div
-            className="h-full bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 transition-[width] duration-150 ease-out"
-            style={{ width: `${scrollProgress}%` }}
+            className="h-full transition-[width,background] duration-150 ease-out"
+            style={{
+              width: `${scrollProgress}%`,
+              background: scrollProgress < 33
+                ? 'linear-gradient(90deg, #f59e0b, #f97316)'
+                : scrollProgress < 66
+                  ? 'linear-gradient(90deg, #f59e0b, #10b981)'
+                  : 'linear-gradient(90deg, #10b981, #06b6d4)',
+            }}
           />
         </div>
         <div ref={readingAreaRef} className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)]">

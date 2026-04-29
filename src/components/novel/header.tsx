@@ -12,14 +12,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Feather, Moon, Sun, Plus, Bot } from 'lucide-react';
+import { Feather, Moon, Sun, Plus, Bot, Home, ChevronRight } from 'lucide-react';
 import { ModelSelector } from './model-selector';
 
 const viewLabels: Record<string, string> = {
-  dashboard: '仪表盘',
-  workspace: '创作工作台',
-  console: '智能体控制台',
-  reader: '小说阅读',
+  dashboard: '首页',
+  workspace: '工作区',
+  console: '智能体',
+  reader: '阅读',
 };
 
 export function Header() {
@@ -28,6 +28,7 @@ export function Header() {
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const currentNovel = useAppStore((s) => s.currentNovel);
+  const currentChapterNumber = useAppStore((s) => s.currentChapterNumber);
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -40,64 +41,86 @@ export function Header() {
     }
   };
 
+  // Build breadcrumb segments for desktop
+  const showHome = viewMode !== 'dashboard';
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Left: Logo */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
-            <Feather className="size-4 text-white" />
+        {/* Left: Logo + Home Button */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
+              <Feather className="size-4 text-white" />
+            </div>
+            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+              笔境 AI
+            </span>
           </div>
-          <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-            笔境 AI
-          </span>
+          {/* 返回首页 button - always visible except on dashboard */}
+          {showHome && (
+            <>
+              <ChevronRight className="size-3.5 text-muted-foreground/40 mx-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleBreadcrumbClick('dashboard')}
+                className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-amber-50 dark:hover:bg-amber-900/20"
+              >
+                <Home className="size-3.5" />
+                <span className="hidden sm:inline">首页</span>
+              </Button>
+            </>
+          )}
         </div>
 
-        {/* Center: Breadcrumb */}
-        <div className="hidden sm:block">
+        {/* Center: Breadcrumb (desktop) */}
+        <div className="hidden sm:flex items-center">
           <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  className="cursor-pointer"
-                  onClick={() => handleBreadcrumbClick('dashboard')}
-                >
-                  仪表盘
-                </BreadcrumbLink>
-              </BreadcrumbItem>
+            <BreadcrumbList className="gap-0.5">
+              {/* Novel name - clickable to workspace */}
+              {currentNovel && viewMode !== 'dashboard' && (
+                <>
+                  <BreadcrumbSeparator className="text-muted-foreground/30" />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink
+                      className="cursor-pointer text-xs hover:text-amber-600 dark:hover:text-amber-400 transition-colors max-w-[140px] truncate"
+                      onClick={() => handleBreadcrumbClick('workspace')}
+                    >
+                      {currentNovel.title}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                </>
+              )}
+
+              {/* View mode page */}
               {viewMode !== 'dashboard' && (
                 <>
-                  <BreadcrumbSeparator />
+                  <BreadcrumbSeparator className="text-muted-foreground/30" />
                   <BreadcrumbItem>
-                    {(viewMode === 'reader' || viewMode === 'console') ? (
+                    {viewMode === 'reader' || viewMode === 'console' ? (
                       <BreadcrumbLink
-                        className="cursor-pointer"
-                        onClick={() => handleBreadcrumbClick('workspace')}
+                        className="cursor-pointer text-xs hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                        onClick={() => handleBreadcrumbClick(viewMode)}
                       >
-                        创作工作台
+                        {viewLabels[viewMode]}
                       </BreadcrumbLink>
                     ) : (
-                      <BreadcrumbPage>{viewLabels[viewMode]}</BreadcrumbPage>
+                      <BreadcrumbPage className="text-xs">{viewLabels[viewMode]}</BreadcrumbPage>
                     )}
                   </BreadcrumbItem>
-                  {viewMode === 'console' && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        <BreadcrumbPage>{viewLabels[viewMode]}</BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </>
-                  )}
-                  {(viewMode === 'workspace' || viewMode === 'reader' || viewMode === 'console') && currentNovel && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        <BreadcrumbPage className="max-w-[160px] truncate">
-                          {currentNovel.title}
-                        </BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </>
-                  )}
+                </>
+              )}
+
+              {/* Reader chapter info */}
+              {viewMode === 'reader' && currentChapterNumber > 0 && (
+                <>
+                  <BreadcrumbSeparator className="text-muted-foreground/30" />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      第{currentChapterNumber}章
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
                 </>
               )}
             </BreadcrumbList>
@@ -105,11 +128,33 @@ export function Header() {
         </div>
 
         {/* Mobile breadcrumb */}
-        <div className="sm:hidden flex items-center gap-1 text-sm text-muted-foreground">
-          {viewMode === 'dashboard' && '仪表盘'}
-          {viewMode === 'workspace' && `工作台${currentNovel ? ` · ${currentNovel.title}` : ''}`}
-          {viewMode === 'console' && `智能体${currentNovel ? ` · ${currentNovel.title}` : ''}`}
-          {viewMode === 'reader' && `阅读`}
+        <div className="sm:hidden flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+          {viewMode === 'dashboard' && <span className="truncate">首页</span>}
+          {viewMode === 'workspace' && (
+            <>
+              <Home className="size-3 shrink-0" />
+              <ChevronRight className="size-2.5 text-muted-foreground/40 shrink-0" />
+              <span className="truncate">{currentNovel?.title || '工作台'}</span>
+            </>
+          )}
+          {viewMode === 'console' && (
+            <>
+              <Home className="size-3 shrink-0" />
+              <ChevronRight className="size-2.5 text-muted-foreground/40 shrink-0" />
+              <span className="truncate">{currentNovel?.title || ''}</span>
+              <ChevronRight className="size-2.5 text-muted-foreground/40 shrink-0" />
+              <span className="truncate">智能体</span>
+            </>
+          )}
+          {viewMode === 'reader' && (
+            <>
+              <Home className="size-3 shrink-0" />
+              <ChevronRight className="size-2.5 text-muted-foreground/40 shrink-0" />
+              <span className="truncate">{currentNovel?.title || ''}</span>
+              <ChevronRight className="size-2.5 text-muted-foreground/40 shrink-0" />
+              <span className="truncate shrink-0">第{currentChapterNumber}章</span>
+            </>
+          )}
         </div>
 
         {/* Right: Actions */}
