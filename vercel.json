@@ -1,10 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npx prisma generate --schema=prisma/schema.postgres.prisma && next build",
-  "installCommand": "npm install --ignore-scripts && npx prisma generate --schema=prisma/schema.postgres.prisma",
+  "buildCommand": "bunx prisma generate --schema=prisma/schema.postgres.prisma && bun run build",
+  "installCommand": "bun install --frozen-lockfile",
   "outputDirectory": ".next",
   "git": {
-    "deploymentEnabled": true
+    "deploymentEnabled": true"
   }
 }
