@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { NextResponse } from 'next/server';
-import { checkDatabaseHealth, initDatabaseSchema } from '@/lib/db';
+import { checkDatabaseHealth, autoInitDatabase } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -17,6 +17,11 @@ export async function GET() {
         environment: health.isVercel ? 'vercel' : 'local',
         config: {
           databaseType: health.databaseType,
+          hasPostgresPrismaUrl: !!process.env.POSTGRES_PRISMA_URL,
+          hasPostgresUrl: !!process.env.POSTGRES_URL,
+          hasDatabaseUrl: !!process.env.DATABASE_URL,
+          hasGlmApiKey: !!process.env.GLM_API_KEY,
+          hasNvidiaApiKey: !!process.env.NVIDIA_API_KEY,
         },
         data: {
           novelCount: health.novelCount,
@@ -51,7 +56,7 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const result = await initDatabaseSchema();
+    const result = await autoInitDatabase();
 
     if (result.ok) {
       return NextResponse.json({

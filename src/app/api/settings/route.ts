@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { NVIDIA_MODELS, getModelInfo, DEFAULT_MODEL_ID } from '@/lib/ai/models';
+import { ALL_MODELS, getModelInfo, DEFAULT_MODEL_ID } from '@/lib/ai/models';
 
 export async function GET() {
-  const currentModel = process.env.NVIDIA_MODEL || DEFAULT_MODEL_ID;
+  const currentModel = process.env.DEFAULT_MODEL || DEFAULT_MODEL_ID;
   const modelInfo = getModelInfo(currentModel);
 
   return NextResponse.json({
     currentModel,
     modelInfo: modelInfo || null,
-    availableModels: NVIDIA_MODELS.map((m) => ({
+    availableModels: ALL_MODELS.map((m) => ({
       id: m.id,
       name: m.name,
       provider: m.provider,
