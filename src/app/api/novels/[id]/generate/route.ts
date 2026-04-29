@@ -103,18 +103,22 @@ export async function POST(
 
     // Save user message to chat history
     await db.chatMessage.create({
-      novelId: id,
-      role: 'user',
-      content: userPrompt,
-      stepRef: stepNumber,
+      data: {
+        novelId: id,
+        role: 'user',
+        content: userPrompt,
+        stepRef: stepNumber,
+      },
     });
 
     // Save assistant response to chat history
     await db.chatMessage.create({
-      novelId: id,
-      role: 'assistant',
-      content,
-      stepRef: stepNumber,
+      data: {
+        novelId: id,
+        role: 'assistant',
+        content,
+        stepRef: stepNumber,
+      },
     });
 
     return NextResponse.json({ success: true, content, step });

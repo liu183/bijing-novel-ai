@@ -196,11 +196,13 @@ export async function POST(
 
     // ── 3. Save the user message ─────────────────────────────────────────
     await db.chatMessage.create({
-      novelId,
-      role: 'user',
-      content: message,
-      agentId: targetAgent.id,
-      agentName: targetAgent.name,
+      data: {
+        novelId,
+        role: 'user',
+        content: message,
+        agentId: targetAgent.id,
+        agentName: targetAgent.name,
+      },
     });
 
     // ── 4. Build context ─────────────────────────────────────────────────
@@ -332,12 +334,14 @@ ${skillsDescription || '（暂无可用技能）'}
 
     // ── 9. Save agent message to DB ──────────────────────────────────────
     const savedMessage = await db.chatMessage.create({
-      novelId,
-      role: 'agent',
-      content: agentContent,
-      agentId: targetAgent.id,
-      agentName: targetAgent.name,
-      skillUsed: usedSkillId,
+      data: {
+        novelId,
+        role: 'agent',
+        content: agentContent,
+        agentId: targetAgent.id,
+        agentName: targetAgent.name,
+        skillUsed: usedSkillId,
+      },
     });
 
     // Save message activity

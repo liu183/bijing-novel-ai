@@ -78,15 +78,19 @@ ${stepsContext || '（暂无已完成步骤）'}
 
     // Save messages to database
     await db.chatMessage.create({
-      novelId: id,
-      role: 'user',
-      content: message,
+      data: {
+        novelId: id,
+        role: 'user',
+        content: message,
+      },
     });
 
     await db.chatMessage.create({
-      novelId: id,
-      role: 'assistant',
-      content: response,
+      data: {
+        novelId: id,
+        role: 'assistant',
+        content: response,
+      },
     });
 
     return NextResponse.json({ success: true, response });

@@ -335,12 +335,14 @@ ${skill.outputFormat}
 
     // Save the skill result as an agent chat message
     await db.chatMessage.create({
-      novelId,
-      role: 'agent',
-      content: result,
-      agentId: agent.id,
-      agentName: agent.name,
-      skillUsed: skill.id,
+      data: {
+        novelId,
+        role: 'agent',
+        content: result,
+        agentId: agent.id,
+        agentName: agent.name,
+        skillUsed: skill.id,
+      },
     });
 
     // Status: done

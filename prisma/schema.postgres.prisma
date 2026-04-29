@@ -1,8 +1,3 @@
-// ============================================================================
-// 笔境 AI - Database Schema for PostgreSQL (Vercel / Neon)
-// Vercel 部署时自动使用此 schema
-// ============================================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,92 +7,87 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Novel {
-  id          String   @id @default(cuid())
-  title       String
-  genre       String   @default("未分类")
-  subgenre    String   @default("")
-  style       String   @default("爽文")
-  targetWords Int      @default(50000)
-  description String   @default("")
-  status      String   @default("draft") // draft, writing, completed, archived
-  currentStep Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model AgentActivity {
+  id               String   @id
+  novelId          String
+  agentId          String
+  agentName        String
+  type             String
+  content          String   @default("")
+  skillName        String?
+  skillDescription String?
+  status           String?
+  metadata         String   @default("{}")
+  createdAt        DateTime @default(now())
+  Novel            Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
 
-  steps    NovelStep[]
-  chapters Chapter[]
-  messages ChatMessage[]
-  activities AgentActivity[]
-
-  @@index([status])
-}
-
-model NovelStep {
-  id        String   @id @default(cuid())
-  novelId   String
-  stepNumber Int
-  title     String
-  content   String   @default("")
-  status    String   @default("pending") // pending, generating, completed, locked
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
-
-  @@unique([novelId, stepNumber])
+  @@index([createdAt])
   @@index([novelId])
 }
 
 model Chapter {
-  id        String   @id @default(cuid())
+  id        String   @id
   novelId   String
   number    Int
   title     String   @default("")
   content   String   @default("")
   wordCount Int      @default(0)
-  status    String   @default("draft") // draft, writing, completed
+  status    String   @default("draft")
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  updatedAt DateTime
+  Novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
 
   @@unique([novelId, number])
   @@index([novelId])
 }
 
 model ChatMessage {
-  id        String   @id @default(cuid())
+  id        String   @id
   novelId   String
-  role      String   // user, assistant, system, agent
+  role      String
   content   String
-  stepRef   Int?     // which step this message is related to
-  agentId   String?  // which agent sent this message
+  stepRef   Int?
+  agentId   String?
   agentName String?
-  skillUsed String?  // which skill was invoked
+  skillUsed String?
   createdAt DateTime @default(now())
+  Novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
 
-  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
-
-  @@index([novelId])
   @@index([createdAt])
+  @@index([novelId])
 }
 
-model AgentActivity {
-  id        String   @id @default(cuid())
-  novelId   String
-  agentId   String   // agent role id
-  agentName String
-  type      String   // thinking, skill_start, skill_complete, message, error, status_change
-  content   String   @default("")
-  skillName String?
-  skillDescription String?
-  status    String?
-  metadata  String   @default("{}") // JSON string
-  createdAt DateTime @default(now())
+model Novel {
+  id            String          @id
+  title         String
+  genre         String          @default("未分类")
+  subgenre      String          @default("")
+  style         String          @default("爽文")
+  targetWords   Int             @default(50000)
+  description   String          @default("")
+  status        String          @default("draft")
+  currentStep   Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  AgentActivity AgentActivity[]
+  Chapter       Chapter[]
+  ChatMessage   ChatMessage[]
+  NovelStep     NovelStep[]
 
-  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  @@index([status])
+}
 
+model NovelStep {
+  id         String   @id
+  novelId    String
+  stepNumber Int
+  title      String
+  content    String   @default("")
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  Novel      Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([novelId, stepNumber])
   @@index([novelId])
-  @@index([createdAt])
 }
