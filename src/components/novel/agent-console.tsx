@@ -44,6 +44,9 @@ import {
   Clock,
   PanelRightClose,
   Play,
+  Copy,
+  Check,
+  Trash2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -209,6 +212,7 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const setActiveAgent = useAppStore((s) => s.setActiveAgent);
   const agentActivities = useAppStore((s) => s.agentActivities);
   const addAgentActivity = useAppStore((s) => s.addAgentActivity);
+  const setAgentActivities = useAppStore((s) => s.setAgentActivities);
   const agentStatus = useAppStore((s) => s.agentStatus);
   const selectedModel = useAppStore((s) => s.selectedModel);
 
@@ -473,7 +477,17 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
       {/* ================================================================== */}
       {/* Section 2: Agent Activity Log (Main Area)                          */}
       {/* ================================================================== */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
+        {/* Clear activities button */}
+        {agentActivities.length > 0 && (
+          <button
+            onClick={() => setAgentActivities([])}
+            className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Trash2 className="size-3" />
+            清空活动记录
+          </button>
+        )}
         <ScrollArea className="h-full">
           <div className="px-3 sm:px-4 py-3 space-y-2 max-w-4xl mx-auto">
             {/* Empty state */}
@@ -1040,11 +1054,7 @@ const ActivityEntry = memo(function ActivityEntry({
               <span className={`text-[11px] font-medium ${activityColors.text}`}>{activity.agentName}</span>
               <span className="text-[10px] text-muted-foreground/50">{formatTimestamp(activity.timestamp)}</span>
             </div>
-            <div className={`rounded-2xl rounded-tl-md ${activityColors.lightBg} border border-border/50 px-4 py-3 text-sm leading-relaxed`}>
-              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-blockquote:my-2 prose-hr:my-3 prose-pre:my-2 prose-img:my-2">
-                <ReactMarkdown>{activity.content}</ReactMarkdown>
-              </div>
-            </div>
+            <MessageBubbleWithCopy content={activity.content} colors={activityColors} />
           </div>
         </div>
       </motion.div>
@@ -1066,6 +1076,65 @@ const ActivityEntry = memo(function ActivityEntry({
         <span>{formatTimestamp(activity.timestamp)}</span>
       </div>
     </motion.div>
+  );
+});
+
+// ============================================================================
+// Sub-Component: Message Bubble with Copy Button
+// ============================================================================
+
+const MessageBubbleWithCopy = memo(function MessageBubbleWithCopy({
+  content,
+  colors,
+}: {
+  content: string;
+  colors: ReturnType<typeof getAgentColorClasses>;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = content;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [content]);
+
+  return (
+    <div className="group/msg relative">
+      <button
+        onClick={handleCopy}
+        className="absolute -top-2 right-1 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] text-muted-foreground/0 group-hover/msg:text-muted-foreground/70 hover:!text-foreground hover:bg-muted/80 transition-all"
+        title={copied ? '已复制' : '复制'}
+      >
+        {copied ? (
+          <>
+            <Check className="size-3 text-emerald-500" />
+            <span className="text-emerald-500">已复制</span>
+          </>
+        ) : (
+          <>
+            <Copy className="size-3" />
+            <span>复制</span>
+          </>
+        )}
+      </button>
+      <div className={`rounded-2xl rounded-tl-md ${colors.lightBg} border border-border/50 px-4 py-3 text-sm leading-relaxed`}>
+        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-blockquote:my-2 prose-hr:my-3 prose-pre:my-2 prose-img:my-2">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+      </div>
+    </div>
   );
 });
 

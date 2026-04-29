@@ -50,7 +50,13 @@ import {
   MessageSquare,
   PanelLeftClose,
   PanelRightClose,
+  Trash2,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 
@@ -372,6 +378,12 @@ export function WorkspaceView() {
     }
   };
 
+  // Clear chat messages
+  const clearChatMessages = useCallback(() => {
+    setChatMessages([]);
+    toast.success('对话已清空');
+  }, [setChatMessages]);
+
   // Handle chat keydown (Ctrl+Enter to send)
   const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -487,6 +499,7 @@ export function WorkspaceView() {
                   chatEndRef={chatEndRef}
                   onClose={() => setRightCollapsed(true)}
                   chatInputRef={chatInputRef}
+                  onClearMessages={clearChatMessages}
                 />
               </ResizablePanel>
             </>
@@ -560,6 +573,7 @@ export function WorkspaceView() {
               onChatKeyDown={handleChatKeyDown}
               chatEndRef={chatEndRef}
               chatInputRef={chatInputRef}
+              onClearMessages={clearChatMessages}
             />
           )}
         </div>
@@ -650,7 +664,7 @@ function StepSidebar({
   const completedCount = novelSteps.filter(
     (s) => s.status === 'completed' || s.status === 'locked'
   ).length;
-  const progress = Math.round((completedCount / 12) * 100);
+  const progress = Math.round((completedCount / STEPS.length) * 100);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -955,6 +969,7 @@ function ChatPanel({
   chatEndRef,
   onClose,
   chatInputRef,
+  onClearMessages,
 }: {
   messages: { role: string; content: string; createdAt?: string }[];
   chatInput: string;
@@ -965,6 +980,7 @@ function ChatPanel({
   chatEndRef: React.RefObject<HTMLDivElement | null>;
   onClose?: () => void;
   chatInputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  onClearMessages?: () => void;
 }) {
   return (
     <div className="flex flex-col h-full bg-background">
@@ -975,11 +991,23 @@ function ChatPanel({
             <MessageCircle className="size-4 text-amber-500" />
             <h3 className="font-semibold text-sm">AI 创作助手</h3>
           </div>
-          {onClose && (
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-              <X className="size-3.5" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {onClearMessages && messages.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClearMessages}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>清空对话</TooltipContent>
+              </Tooltip>
+            )}
+            {onClose && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+                <X className="size-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1012,7 +1040,13 @@ function ChatPanel({
                       : 'bg-muted/80 dark:bg-muted/40 text-foreground rounded-bl-sm'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  {isUser ? (
+                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  ) : (
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-li:leading-relaxed prose-strong:text-foreground">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             );

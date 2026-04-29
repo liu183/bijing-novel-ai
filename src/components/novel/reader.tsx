@@ -18,8 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -29,8 +35,62 @@ import {
   BookOpen,
   Loader2,
   Hash,
+  Settings,
+  Type,
+  AlignJustify,
+  CaseSensitive,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+// ─── Reader Preferences ───
+interface ReaderPrefs {
+  fontSize: 'small' | 'medium' | 'large';
+  lineHeight: 'compact' | 'normal' | 'relaxed';
+  fontFamily: 'sans' | 'serif';
+}
+
+const READER_PREFS_KEY = 'reader-prefs';
+const DEFAULT_PREFS: ReaderPrefs = {
+  fontSize: 'medium',
+  lineHeight: 'normal',
+  fontFamily: 'serif',
+};
+
+function loadReaderPrefs(): ReaderPrefs {
+  if (typeof window === 'undefined') return DEFAULT_PREFS;
+  try {
+    const stored = localStorage.getItem(READER_PREFS_KEY);
+    if (stored) return { ...DEFAULT_PREFS, ...JSON.parse(stored) };
+  } catch {
+    // ignore
+  }
+  return DEFAULT_PREFS;
+}
+
+function saveReaderPrefs(prefs: ReaderPrefs) {
+  try {
+    localStorage.setItem(READER_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore
+  }
+}
+
+const fontSizeMap: Record<string, string> = {
+  small: 'text-[15px]',
+  medium: 'text-[17px]',
+  large: 'text-[20px]',
+};
+
+const lineHeightMap: Record<string, string> = {
+  compact: 'leading-[1.7]',
+  normal: 'leading-[2]',
+  relaxed: 'leading-[2.4]',
+};
+
+const fontFamilyMap: Record<string, string> = {
+  sans: 'font-sans',
+  serif: 'font-serif',
+};
 
 export function ReaderView() {
   const currentNovel = useAppStore((s) => s.currentNovel);
@@ -40,11 +100,20 @@ export function ReaderView() {
   const setIsChapterGenerating = useAppStore((s) => s.setIsChapterGenerating);
   const generateChapterNumber = useAppStore((s) => s.generateChapterNumber);
   const setGenerateChapterNumber = useAppStore((s) => s.setGenerateChapterNumber);
+  const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [localChapterNum, setLocalChapterNum] = useState(1);
   const [contentKey, setContentKey] = useState(0);
+  const [readerPrefs, setReaderPrefs] = useState<ReaderPrefs>(() => loadReaderPrefs());
+  const updatePref = useCallback(<K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => {
+    setReaderPrefs((prev) => {
+      const next = { ...prev, [key]: value };
+      saveReaderPrefs(next);
+      return next;
+    });
+  }, []);
 
   const chapters = currentNovel?.chapters || [];
   const currentChapter = chapters[currentChapterIndex] || null;
@@ -79,7 +148,7 @@ export function ReaderView() {
       const res = await fetch(`/api/novels/${currentNovel.id}/chapters`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chapterNumber: localChapterNum }),
+        body: JSON.stringify({ chapterNumber: localChapterNum, model: selectedModel }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -107,7 +176,7 @@ export function ReaderView() {
     } finally {
       setIsChapterGenerating(false);
     }
-  }, [currentNovel, localChapterNum, isChapterGenerating, setIsChapterGenerating, setCurrentNovel]);
+  }, [currentNovel, localChapterNum, isChapterGenerating, selectedModel, setIsChapterGenerating, setCurrentNovel]);
 
   // Navigation
   const goToPrevChapter = useCallback(() => {
@@ -173,7 +242,7 @@ export function ReaderView() {
       return (
         <p
           key={idx}
-          className="text-[17px] leading-[2] tracking-wide text-foreground/90 indent-[2em] mb-0"
+          className={`${fontSizeMap[readerPrefs.fontSize]} ${lineHeightMap[readerPrefs.lineHeight]} tracking-wide text-foreground/90 indent-[2em] mb-0`}
         >
           {trimmed}
         </p>
@@ -325,6 +394,101 @@ export function ReaderView() {
         </div>
       </div>
 
+      {/* Reading Preferences Bar */}
+      <div className="border-b border-border/40 bg-background/60 backdrop-blur-sm">
+        <div className="mx-auto flex h-10 max-w-4xl items-center justify-center px-4 sm:px-6">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs text-muted-foreground hover:text-foreground h-8"
+              >
+                <Settings className="size-3.5" />
+                阅读设置
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="center">
+              <div className="space-y-4">
+                {/* Font Size */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium">
+                    <Type className="size-3.5 text-muted-foreground" />
+                    字号
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(['small', 'medium', 'large'] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        onClick={() => updatePref('fontSize', sz)}
+                        className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                          readerPrefs.fontSize === sz
+                            ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                            : 'border-border text-muted-foreground hover:border-amber-300 hover:text-amber-600'
+                        }`}
+                      >
+                        {sz === 'small' ? '小' : sz === 'medium' ? '中' : '大'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Line Height */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium">
+                    <AlignJustify className="size-3.5 text-muted-foreground" />
+                    行距
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(['compact', 'normal', 'relaxed'] as const).map((lh) => (
+                      <button
+                        key={lh}
+                        onClick={() => updatePref('lineHeight', lh)}
+                        className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                          readerPrefs.lineHeight === lh
+                            ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                            : 'border-border text-muted-foreground hover:border-amber-300 hover:text-amber-600'
+                        }`}
+                      >
+                        {lh === 'compact' ? '紧凑' : lh === 'normal' ? '适中' : '宽松'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Font Family */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium">
+                    <CaseSensitive className="size-3.5 text-muted-foreground" />
+                    字体
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(['sans', 'serif'] as const).map((ff) => (
+                      <button
+                        key={ff}
+                        onClick={() => updatePref('fontFamily', ff)}
+                        className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                          readerPrefs.fontFamily === ff
+                            ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                            : 'border-border text-muted-foreground hover:border-amber-300 hover:text-amber-600'
+                        }`}
+                        style={{ fontFamily: ff === 'serif' ? 'serif' : 'sans-serif' }}
+                      >
+                        {ff === 'sans' ? '黑体' : '宋体'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
       {/* Reading Area */}
       <div className="flex-1 bg-stone-50/50 dark:bg-stone-950/50">
         <div className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16">
@@ -347,7 +511,7 @@ export function ReaderView() {
               </header>
 
               {/* Chapter Content */}
-              <div className="space-y-1 font-serif text-foreground/90">
+              <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} text-foreground/90`}>
                 {renderContent(currentChapter.content)}
               </div>
 

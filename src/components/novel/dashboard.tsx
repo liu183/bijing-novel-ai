@@ -18,7 +18,9 @@ import {
   ArrowRight,
   Calendar,
   Clock,
+  Pencil,
 } from 'lucide-react';
+import { EditNovelDialog } from './edit-novel-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +62,8 @@ export function DashboardView() {
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const [loading, setLoading] = useState(true);
+  const [editingNovel, setEditingNovel] = useState<NovelData | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const fetchNovels = useCallback(async () => {
     try {
@@ -75,6 +79,23 @@ export function DashboardView() {
       setLoading(false);
     }
   }, [setNovels]);
+
+  const handleEditNovel = (novel: NovelData) => {
+    setEditingNovel(novel);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = (updatedNovel: Partial<NovelData>) => {
+    // Update the novels list with the saved data
+    setNovels(
+      novels.map((n) => (n.id === updatedNovel.id ? { ...n, ...updatedNovel } : n))
+    );
+    // Also update currentNovel if it matches
+    setCurrentNovel(useAppStore.getState().currentNovel?.id === updatedNovel.id
+      ? { ...useAppStore.getState().currentNovel!, ...updatedNovel }
+      : useAppStore.getState().currentNovel
+    );
+  };
 
   useEffect(() => {
     fetchNovels();
@@ -172,7 +193,10 @@ export function DashboardView() {
                 <Plus className="size-4" />
                 开始创作
               </Button>
-              <Button variant="outline" size="lg" className="gap-2">
+              <Button variant="outline" size="lg" className="gap-2" onClick={() => {
+                const el = document.getElementById('novels-section');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}>
                 了解更多
                 <ArrowRight className="size-4" />
               </Button>
@@ -209,7 +233,7 @@ export function DashboardView() {
 
       {/* Novel Projects Section */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
+        <div id="novels-section" className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold tracking-tight">我的小说项目</h2>
             <p className="text-sm text-muted-foreground mt-1">管理和查看您的所有小说创作项目</p>
@@ -278,6 +302,7 @@ export function DashboardView() {
                 novel={novel}
                 onClick={() => handleNovelClick(novel)}
                 onDelete={() => handleDeleteNovel(novel.id)}
+                onEdit={() => handleEditNovel(novel)}
               />
             ))}
           </div>
@@ -296,6 +321,14 @@ export function DashboardView() {
           </div>
         )}
       </section>
+
+      {/* Edit Novel Dialog */}
+      <EditNovelDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        novel={editingNovel}
+        onSave={handleEditSave}
+      />
     </div>
   );
 }
@@ -304,10 +337,12 @@ function NovelCard({
   novel,
   onClick,
   onDelete,
+  onEdit,
 }: {
   novel: NovelData;
   onClick: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }) {
   const progress = Math.round((novel.currentStep / 12) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
@@ -386,7 +421,20 @@ function NovelCard({
           {formatDate(novel.createdAt)}
         </span>
 
-        <AlertDialog>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:text-amber-600 dark:hover:text-amber-400"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+
+          <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="ghost"
@@ -415,6 +463,7 @@ function NovelCard({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </CardFooter>
     </Card>
   );
