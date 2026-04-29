@@ -194,10 +194,10 @@
   50% { opacity: 0.8; }
 }
 
-.animate-float-1 { animation: float-1 6s ease-in-out infinite; }
-.animate-float-2 { animation: float-2 8s ease-in-out infinite; }
-.animate-float-3 { animation: float-3 7s ease-in-out infinite; }
-.animate-float-4 { animation: float-4 5s ease-in-out infinite; }
+.animate-float-1 { animation: float-1 6s ease-in-out infinite both; }
+.animate-float-2 { animation: float-2 8s ease-in-out infinite both; }
+.animate-float-3 { animation: float-3 7s ease-in-out infinite both; }
+.animate-float-4 { animation: float-4 5s ease-in-out infinite both; }
 .animate-shimmer { animation: shimmer 2s infinite; }
 .animate-breathe { animation: breathe 3s ease-in-out infinite; }
 .animate-avatar-glow { animation: avatar-glow 2s ease-in-out infinite; }

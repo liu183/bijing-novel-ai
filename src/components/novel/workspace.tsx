@@ -70,6 +70,7 @@ import {
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
@@ -495,13 +496,11 @@ export function WorkspaceView() {
       }
       // '?' or 'h' opens shortcuts help
       if (e.key === '?' || e.key === 'h') {
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-          e.preventDefault();
-          // Find and toggle the shortcuts help popover
-          const helpBtn = document.querySelector('[data-shortcuts-help]');
-          if (helpBtn) helpBtn.click();
-          return;
-        }
+        e.preventDefault();
+        // Find and toggle the shortcuts help popover
+        const helpBtn = document.querySelector('[data-shortcuts-help]');
+        if (helpBtn) helpBtn.click();
+        return;
       }
       if (e.key === 'e' || e.key === 'E') {
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
@@ -646,6 +645,7 @@ export function WorkspaceView() {
                   onClose={() => setRightCollapsed(true)}
                   chatInputRef={chatInputRef}
                   onClearMessages={clearChatMessages}
+                  currentStep={currentStep}
                 />
               </ResizablePanel>
             </>
@@ -740,6 +740,7 @@ export function WorkspaceView() {
                   chatEndRef={chatEndRef}
                   chatInputRef={chatInputRef}
                   onClearMessages={clearChatMessages}
+                  currentStep={currentStep}
                 />
               </motion.div>
             )}
@@ -780,6 +781,13 @@ export function WorkspaceView() {
           >
             <MessageSquare className="size-4" />
             对话
+          </button>
+          <button
+            onClick={() => setViewMode('reader')}
+            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors text-muted-foreground"
+          >
+            <BookOpen className="size-4" />
+            阅读
           </button>
         </div>
       </div>
@@ -883,6 +891,7 @@ function StepSidebar({
 
       {/* Steps List */}
       <ScrollArea className="flex-1">
+        <TooltipProvider delayDuration={500}>
         <div className="px-3 py-2 space-y-1">
           {PHASES.map((phase) => {
             const colors = phaseColorMap[phase.name] || phaseColorMap['Phase 1: 基础'];
@@ -904,34 +913,41 @@ function StepSidebar({
                   const Icon = iconMap[config.icon] || Lightbulb;
 
                   return (
-                    <button
-                      key={stepNum}
-                      onClick={() => onStepClick(stepNum)}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150 group ${
-                        isActive
-                          ? `${colors.bg} border-l-2 ${colors.border} -ml-[2px] pl-[calc(0.625rem+2px)]`
-                          : 'hover:bg-muted/50 border-l-2 border-transparent -ml-[2px] pl-[calc(0.625rem+2px)]'
-                      }`}
-                    >
-                      <Icon className={`size-4 shrink-0 ${isActive ? colors.text : 'text-muted-foreground/60 group-hover:text-muted-foreground'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-muted-foreground/60 font-mono">
-                            {String(stepNum).padStart(2, '0')}
-                          </span>
-                          <span className={`text-xs font-medium truncate ${isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                            {config.title}
-                          </span>
-                        </div>
-                      </div>
-                      {renderStepStatus(stepNum)}
-                    </button>
+                    <Tooltip key={stepNum}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => onStepClick(stepNum)}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150 group ${
+                            isActive
+                              ? `${colors.bg} border-l-2 ${colors.border} -ml-[2px] pl-[calc(0.625rem+2px)]`
+                              : 'hover:bg-muted/50 border-l-2 border-transparent -ml-[2px] pl-[calc(0.625rem+2px)]'
+                          }`}
+                        >
+                          <Icon className={`size-4 shrink-0 ${isActive ? colors.text : 'text-muted-foreground/60 group-hover:text-muted-foreground'}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                {String(stepNum).padStart(2, '0')}
+                              </span>
+                              <span className={`text-xs font-medium truncate ${isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                                {config.title}
+                              </span>
+                            </div>
+                          </div>
+                          {renderStepStatus(stepNum)}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-[220px]">
+                        <p className="text-xs leading-relaxed">{config.description}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   );
                 })}
               </div>
             );
           })}
         </div>
+        </TooltipProvider>
       </ScrollArea>
 
       {/* Generate Chapter Buttons */}
@@ -1273,6 +1289,7 @@ function ChatPanel({
   onClose,
   chatInputRef,
   onClearMessages,
+  currentStep,
 }: {
   messages: { role: string; content: string; createdAt?: string }[];
   chatInput: string;
@@ -1284,7 +1301,21 @@ function ChatPanel({
   onClose?: () => void;
   chatInputRef?: React.RefObject<HTMLTextAreaElement | null>;
   onClearMessages?: () => void;
+  currentStep?: number;
 }) {
+  // Context-aware suggestion chips based on current step
+  const suggestionChips: Record<string, string[]> = {
+    '1-3': ['帮我丰富世界观设定', '优化角色形象描述', '增加更多冲突元素'],
+    '4-6': ['完善故事大纲', '细化场景描写', '优化情节节奏'],
+    '7-9': ['润色对白风格', '增强情感表达', '添加环境描写'],
+    '10-12': ['检查逻辑漏洞', '优化文字表达', '提升整体节奏'],
+  };
+  const stepRange = currentStep ? (currentStep <= 3 ? '1-3' : currentStep <= 6 ? '4-6' : currentStep <= 9 ? '7-9' : '10-12') : '1-3';
+  const suggestions = suggestionChips[stepRange] || suggestionChips['1-3'];
+
+  const handleChipClick = (text: string) => {
+    onChatInputChange(text);
+  };
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Chat Header */}
@@ -1401,6 +1432,19 @@ function ChatPanel({
 
       {/* Chat Input */}
       <div className="px-4 py-3 border-t shrink-0">
+        {/* Quick suggestion chips */}
+        <div className="flex items-center gap-1.5 mb-2 overflow-x-auto scrollbar-thin pb-1">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              onClick={() => handleChipClick(suggestion)}
+              disabled={isChatLoading}
+              className="text-xs px-2.5 py-1 rounded-full border border-border/60 bg-muted/30 hover:bg-muted transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
         <div className="flex items-end gap-2">
           <Textarea
             ref={chatInputRef}

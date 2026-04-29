@@ -140,6 +140,9 @@ export function ReaderView() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isEditingContent, setIsEditingContent] = useState(false);
+  const [editContentValue, setEditContentValue] = useState('');
+  const [isSavingContent, setIsSavingContent] = useState(false);
   const [streamMode, setStreamMode] = useState(false);
   const [streamContent, setStreamContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -163,6 +166,7 @@ export function ReaderView() {
     setCurrentChapterIndex(0);
     setContentKey((k) => k + 1);
     setScrollProgress(0);
+    setIsEditingContent(false);
   }, [currentNovel?.id]);
 
   // Scroll progress tracking
@@ -325,7 +329,8 @@ export function ReaderView() {
     if (!isFirstChapter) {
       setCurrentChapterIndex((i) => i - 1);
       setContentKey((k) => k + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setIsEditingContent(false);
+      readingAreaRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [isFirstChapter]);
 
@@ -333,7 +338,8 @@ export function ReaderView() {
     if (!isLastChapter) {
       setCurrentChapterIndex((i) => i + 1);
       setContentKey((k) => k + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setIsEditingContent(false);
+      readingAreaRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [isLastChapter]);
 
@@ -343,6 +349,7 @@ export function ReaderView() {
       if (idx >= 0) {
         setCurrentChapterIndex(idx);
         setContentKey((k) => k + 1);
+        setIsEditingContent(false);
       }
     },
     [chapters]
@@ -372,6 +379,48 @@ export function ReaderView() {
     } catch {
       toast.error('更新失败');
     }
+  };
+
+  // Save chapter content
+  const handleSaveContent = async () => {
+    if (!currentNovel || !currentChapter) return;
+    setIsSavingContent(true);
+    try {
+      const res = await fetch(`/api/novels/${currentNovel.id}/chapters`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapterNumber: currentChapter.number,
+          title: currentChapter.title,
+          content: editContentValue,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        const updatedChapters = currentNovel.chapters?.map((ch) =>
+          ch.number === currentChapter.number
+            ? { ...ch, content: updated.content, wordCount: updated.wordCount }
+            : ch
+        );
+        setCurrentNovel({ ...currentNovel, chapters: updatedChapters });
+        setContentKey((k) => k + 1);
+        toast.success('章节内容已保存');
+        setIsEditingContent(false);
+      } else {
+        toast.error('保存失败');
+      }
+    } catch {
+      toast.error('保存失败');
+    } finally {
+      setIsSavingContent(false);
+    }
+  };
+
+  // Enter content edit mode
+  const handleEnterContentEdit = () => {
+    if (!currentChapter) return;
+    setEditContentValue(currentChapter.content || '');
+    setIsEditingContent(true);
   };
 
   // Delete chapter
@@ -788,8 +837,18 @@ export function ReaderView() {
                         size="icon" variant="ghost"
                         className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => { setEditTitleValue(currentChapter?.title || ''); setEditingTitle(true); }}
+                        title="编辑标题"
                       >
                         <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon" variant="ghost"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                        onClick={handleEnterContentEdit}
+                        title="编辑内容"
+                      >
+                        <Pencil className="size-3.5" />
+                        <span className="text-[8px] font-bold absolute">A</span>
                       </Button>
                       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                         <AlertDialogTrigger asChild>
@@ -829,11 +888,60 @@ export function ReaderView() {
               </header>
 
               {/* Chapter Content */}
-              <div className={`rounded-lg border p-6 sm:p-8 ${themeStyles[readerPrefs.theme].bg} ${themeStyles[readerPrefs.theme].border}`}>
-                <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} ${themeStyles[readerPrefs.theme].text}`}>
-                  {renderContent(currentChapter.content)}
+              {isEditingContent ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <textarea
+                    value={editContentValue}
+                    onChange={(e) => setEditContentValue(e.target.value)}
+                    className="w-full min-h-[60vh] p-6 text-base leading-relaxed resize-y rounded-lg border border-input bg-background font-serif"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsEditingContent(false);
+                    }}
+                  />
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-xs text-muted-foreground">
+                      {editContentValue.replace(/\s/g, '').length} 字
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingContent(false)}
+                        className="gap-1.5 text-xs"
+                      >
+                        <X className="size-3.5" />
+                        取消
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveContent}
+                        disabled={isSavingContent}
+                        className="gap-1.5 text-xs border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                      >
+                        {isSavingContent ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Check className="size-3.5" />
+                        )}
+                        保存
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <div className={`rounded-lg border p-6 sm:p-8 ${themeStyles[readerPrefs.theme].bg} ${themeStyles[readerPrefs.theme].border}`}>
+                  <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} ${themeStyles[readerPrefs.theme].text}`}>
+                    {renderContent(currentChapter.content)}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Chapter Footer */}
               <footer className="mt-16 pt-8 border-t border-border/40">

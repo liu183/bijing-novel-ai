@@ -17,18 +17,9 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { TOTAL_STEPS, genreChartColors } from '@/lib/constants';
 
-const genreColors: Record<string, string> = {
-  '都市脑洞': '#f97316',
-  '玄幻脑洞': '#a855f7',
-  '悬疑脑洞': '#f43f5e',
-  '科幻': '#06b6d4',
-  '末世': '#ef4444',
-  '年代重生': '#f59e0b',
-  '言情': '#ec4899',
-  '其他': '#6b7280',
-  '未分类': '#6b7280',
-};
+
 
 // Define CustomTooltip outside of the component to avoid "Cannot create components during render"
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
@@ -115,7 +106,7 @@ export function StatsChart({ novels }: StatsChartProps) {
                   <BarChart data={stepsProgressData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
                     <XAxis
                       type="number"
-                      domain={[0, 12]}
+                      domain={[0, TOTAL_STEPS]}
                       tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                       axisLine={{ stroke: 'hsl(var(--border))' }}
                       tickLine={false}
@@ -140,14 +131,14 @@ export function StatsChart({ novels }: StatsChartProps) {
                       {stepsProgressData.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={genreColors[entry.genre] || '#f59e0b'}
+                          fill={genreChartColors[entry.genre] || '#f59e0b'}
                         />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
-              <p className="text-[10px] text-muted-foreground mt-2 text-right">单位：步（共12步）</p>
+              <p className="text-[10px] text-muted-foreground mt-2 text-right">单位：步（共{TOTAL_STEPS}步）</p>
             </div>
 
             {/* Chart 2: Word Count Overview */}

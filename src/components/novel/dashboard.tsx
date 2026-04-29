@@ -50,10 +50,11 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { exportNovelToDocx } from '@/lib/export-docx';
 import { exportNovelToDocxFormatted } from '@/lib/export-docx-formatted';
+import { TOTAL_STEPS, genreColors } from '@/lib/constants';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
@@ -62,17 +63,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   archived: { label: '已归档', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500' },
 };
 
-const genreColors: Record<string, string> = {
-  '都市脑洞': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
-  '玄幻脑洞': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400',
-  '悬疑脑洞': 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
-  '科幻': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400',
-  '末世': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
-  '年代重生': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-  '言情': 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-400',
-  '其他': 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  '未分类': 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-};
+
 
 // Shared TXT export logic
 async function exportNovelToTxt(data: { steps: { stepNumber: number; title: string; content: string }[]; chapters: { number: number; title: string; content: string }[] }, novel: NovelData) {
@@ -295,7 +286,7 @@ export function DashboardView() {
               笔境 AI — 智能网文创作平台
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base text-gray-600 dark:text-gray-400 sm:text-lg">
-              从灵感到完稿，AI 全流程辅助您的网文创作。12步智能引导、对话式设定构建、章节自动生成，让写作变得更简单。
+              从灵感到完稿，AI 全流程辅助您的网文创作。{TOTAL_STEPS}步智能引导、对话式设定构建、章节自动生成，让写作变得更简单。
             </p>
             <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Button
@@ -317,7 +308,7 @@ export function DashboardView() {
             </div>
             {/* Trust indicators */}
             <div className="mt-5 flex items-center justify-center gap-4 text-xs text-muted-foreground/70">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-emerald-500" /> 12步智能引导</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-emerald-500" /> {TOTAL_STEPS}步智能引导</span>
               <span className="flex items-center gap-1.5"><Zap className="size-3.5 text-amber-500" /> AI 秒级响应</span>
               <span className="flex items-center gap-1.5"><Shield className="size-3.5 text-blue-500" /> 数据安全</span>
             </div>
@@ -331,7 +322,7 @@ export function DashboardView() {
           {stats.map((stat) => (
             <div key={stat.label} className="group relative" title={stat.secondary || `${stat.label}: ${stat.value}`}>
               <Card
-                className="border-0 shadow-lg shadow-black/5 dark:shadow-black/20 py-4 gap-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+                className="card-glass border-0 shadow-lg shadow-black/5 dark:shadow-black/20 py-4 gap-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
               >
                 <CardContent className="px-4 flex items-center gap-3">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stat.bgColor}`}>
@@ -402,7 +393,7 @@ export function DashboardView() {
                     <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-0.5">继续上次创作</p>
                     <h3 className="font-semibold text-base">{recentNovel.title}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      已完成 {completedSteps}/12 步 · {recentNovel.genre} · {recentNovel.style}
+                      已完成 {completedSteps}/{TOTAL_STEPS} 步 · {recentNovel.genre} · {recentNovel.style}
                     </p>
                   </div>
                 </div>
@@ -414,7 +405,7 @@ export function DashboardView() {
               </div>
               {/* Progress bar */}
               <div className="mt-3 h-1 rounded-full bg-amber-100 dark:bg-amber-900/30 overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all" style={{ width: `${Math.round((completedSteps / 12) * 100)}%` }} />
+                <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all" style={{ width: `${Math.round((completedSteps / TOTAL_STEPS) * 100)}%` }} />
               </div>
             </div>
           );
@@ -562,6 +553,36 @@ export function DashboardView() {
         )}
       </section>
 
+      {/* Feature Highlights */}
+      <section className="mt-12 mb-8">
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-bold tracking-tight gradient-text">创作工具</h2>
+          <p className="text-sm text-muted-foreground mt-1">强大的 AI 工具链，覆盖网文创作全流程</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { icon: Sparkles, title: 'AI 智能生成', desc: `${TOTAL_STEPS}步引导式创作，AI辅助从灵感到完稿`, color: 'from-amber-500 to-orange-500', shadowColor: 'shadow-amber-500/20', floatClass: 'animate-float-1' },
+            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500', shadowColor: 'shadow-blue-500/20', floatClass: 'animate-float-2' },
+            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500', shadowColor: 'shadow-emerald-500/20', floatClass: 'animate-float-3' },
+            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500', shadowColor: 'shadow-violet-500/20', floatClass: 'animate-float-4' },
+          ].map((feature, index) => (
+            <div 
+              key={feature.title} 
+              className={`group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg hover:border-amber-300/50 dark:hover:border-amber-700/30 transition-all duration-300 cursor-default overflow-hidden ${feature.floatClass}`}
+              style={{ animationDelay: `${index * 0.5}s` }}
+            >
+              {/* Decorative gradient line on top */}
+              <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
+              <div className={`flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br ${feature.color} mb-3 shadow-md ${feature.shadowColor} transition-transform duration-300 group-hover:scale-110`}>
+                <feature.icon className="size-5 text-white" />
+              </div>
+              <h3 className="font-semibold text-sm mb-1.5 group-hover:text-foreground transition-colors">{feature.title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="mt-12 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -589,36 +610,6 @@ export function DashboardView() {
         </div>
       </footer>
 
-      {/* Feature Highlights */}
-      <section className="mt-12 mb-8">
-        <div className="text-center mb-6">
-          <h2 className="text-xl font-bold tracking-tight">创作工具</h2>
-          <p className="text-sm text-muted-foreground mt-1">强大的 AI 工具链，覆盖网文创作全流程</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { icon: Sparkles, title: 'AI 智能生成', desc: '12步引导式创作，AI辅助从灵感到完稿', color: 'from-amber-500 to-orange-500', shadowColor: 'shadow-amber-500/20' },
-            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500', shadowColor: 'shadow-blue-500/20' },
-            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500', shadowColor: 'shadow-emerald-500/20' },
-            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500', shadowColor: 'shadow-violet-500/20' },
-          ].map((feature, index) => (
-            <div 
-              key={feature.title} 
-              className="group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg hover:border-amber-300/50 dark:hover:border-amber-700/30 transition-all duration-300 cursor-default overflow-hidden"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              {/* Decorative gradient line on top */}
-              <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
-              <div className={`flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br ${feature.color} mb-3 shadow-md ${feature.shadowColor} transition-transform duration-300 group-hover:scale-110`}>
-                <feature.icon className="size-5 text-white" />
-              </div>
-              <h3 className="font-semibold text-sm mb-1.5 group-hover:text-foreground transition-colors">{feature.title}</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Edit Novel Dialog */}
       <EditNovelDialog
         open={editDialogOpen}
@@ -645,7 +636,7 @@ function NovelCard({
   onExportTxt: () => void;
   onExportDocx: () => void;
 }) {
-  const progress = Math.round((novel.currentStep / 12) * 100);
+  const progress = Math.round((novel.currentStep / TOTAL_STEPS) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
   const genreColor = genreColors[novel.genre] || genreColors['未分类'];
   const [exporting, setExporting] = React.useState<string | null>(null);
@@ -653,6 +644,14 @@ function NovelCard({
   const formatDate = (dateStr: string) => {
     try {
       return format(new Date(dateStr), 'yyyy-MM-dd', { locale: zhCN });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    try {
+      return format(new Date(dateStr), 'yyyy-MM-dd HH:mm', { locale: zhCN });
     } catch {
       return dateStr;
     }
@@ -706,7 +705,7 @@ function NovelCard({
             {novel.title}
           </CardTitle>
           <div className="flex items-center gap-1 shrink-0">
-            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${genreColor} border-0`}>
+            <Badge className={`text-[10px] px-1.5 py-0.5 bg-gradient-to-r text-white ${genreColor} border-0`}>
               {novel.genre}
             </Badge>
           </div>
@@ -745,7 +744,7 @@ function NovelCard({
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <ListChecks className="size-3" />
-            {novel.currentStep}/12 步
+            {novel.currentStep}/{TOTAL_STEPS} 步
           </span>
           <span className="flex items-center gap-1">
             <FileText className="size-3" />
@@ -760,9 +759,17 @@ function NovelCard({
       </CardContent>
 
       <CardFooter className="px-5 pt-0 flex items-center justify-between">
-        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1 text-[11px] text-muted-foreground"
+          title={formatDateTime(novel.createdAt)}
+        >
           <Calendar className="size-3" />
-          {formatDate(novel.createdAt)}
+          {(() => {
+            try {
+              return formatDistanceToNow(new Date(novel.createdAt), { addSuffix: true, locale: zhCN });
+            } catch {
+              return formatDate(novel.createdAt);
+            }
+          })()}
         </span>
 
         <div className="flex items-center gap-1">

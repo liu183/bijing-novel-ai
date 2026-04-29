@@ -10,6 +10,7 @@ import { AgentConsole } from '@/components/novel/agent-console';
 import { CreateNovelDialog } from '@/components/novel/create-novel-dialog';
 import { GenerateStepDialog } from '@/components/novel/generate-step-dialog';
 import { ModelSettingsDialog } from '@/components/novel/model-settings-dialog';
+import { CommandPalette } from '@/components/novel/command-palette';
 
 export default function HomePage() {
   const viewMode = useAppStore((s) => s.viewMode);
@@ -36,6 +37,7 @@ export default function HomePage() {
       <CreateNovelDialog />
       <GenerateStepDialog />
       <ModelSettingsDialog />
+      <CommandPalette />
     </div>
   );
 }
