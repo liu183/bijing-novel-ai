@@ -94,9 +94,9 @@ async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionRes
     body.stream = true;
   }
 
-  console.log(`[AI] Calling model: ${model} (provider: ${modelInfo?.provider || 'unknown'})`);
-  console.log(`[AI] API base: ${apiBase}`);
-  console.log(`[AI] Messages count: ${options.messages.length}`);
+  if (process.env.NODE_ENV === 'development') console.log(`[AI] Calling model: ${model} (provider: ${modelInfo?.provider || 'unknown'})`);
+  if (process.env.NODE_ENV === 'development') console.log(`[AI] API base: ${apiBase}`);
+  if (process.env.NODE_ENV === 'development') console.log(`[AI] Messages count: ${options.messages.length}`);
 
   // Build headers based on provider
   const headers: Record<string, string> = {
@@ -181,7 +181,7 @@ export async function* streamAI(
     stream: true,
   };
 
-  console.log(`[AI] Streaming model: ${model}`);
+  if (process.env.NODE_ENV === 'development') console.log(`[AI] Streaming model: ${model}`);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

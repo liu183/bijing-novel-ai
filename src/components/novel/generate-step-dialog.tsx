@@ -42,12 +42,26 @@ export function GenerateStepDialog() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tipRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const generatingTips = [
-    'AI 正在分析您的创作需求...',
-    '正在构思创意方向...',
-    '正在组织故事结构...',
-    '即将完成，请稍候...',
-  ];
+  const stepTips: Record<number, string[]> = {
+    1: ['分析题材偏好和市场需求...', '构思多个独特的故事创意...', '评估创意的可行性和商业潜力...'],
+    2: ['扩展核心创意为一页故事梗概...', '构建清晰的故事三幕结构...', '完善情节逻辑和角色动机...'],
+    3: ['设计主角的成长弧线...', '创建丰富的配角体系...', '构建角色之间的关系网络...'],
+    4: ['提炼核心主题和思想深度...', '设计主题的多层表达方式...', '确保主题贯穿整个故事...'],
+    5: ['规划故事的整体节奏结构...', '安排关键转折和高潮节点...', '设计幕与幕之间的过渡...'],
+    6: ['设计主要场景的空间布局...', '细化每个场景的冲突和张力...', '安排场景之间的衔接...'],
+    7: ['构思最具视觉冲击力的关键场面...', '设计场景中的情感高潮点...', '打磨场面的细节描写...'],
+    8: ['根据角色性格设计对白风格...', '创作有辨识度的角色语言...', '通过对白推进情节发展...'],
+    9: ['设计象征元素和隐喻系统...', '安排暗线的伏笔和回收...', '构建多层叙事结构...'],
+    10: ['分析当前节奏的张弛有度...', '调整快慢节奏的交替频率...', '确保读者的阅读体验流畅...'],
+    11: ['设计多种可能的结局方案...', '确保结局呼应主题和伏笔...', '平衡读者的期待和惊喜...'],
+    12: ['分析已有内容的一致性...', '打磨文字质量和表达精度...', '优化整体叙事节奏...'],
+  };
+
+  const getTips = (stepNum: number): string[] => {
+    return stepTips[stepNum] || ['AI 正在分析您的创作需求...', '正在生成高质量内容...', '即将完成，请稍候...'];
+  };
+
+  const generatingTips = getTips(stepNumber);
 
   const stepConfig = getStepConfig(stepNumber);
 
@@ -73,8 +87,9 @@ export function GenerateStepDialog() {
       timerRef.current = setInterval(() => {
         setElapsedTime(prev => prev + 1);
       }, 1000);
+      const currentTips = getTips(stepNumber);
       tipRef.current = setInterval(() => {
-        setTipIndex(prev => (prev + 1) % generatingTips.length);
+        setTipIndex(prev => (prev + 1) % currentTips.length);
       }, 4000);
     } else {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -84,7 +99,7 @@ export function GenerateStepDialog() {
       if (timerRef.current) clearInterval(timerRef.current);
       if (tipRef.current) clearInterval(tipRef.current);
     };
-  }, [loading, generatingTips.length]);
+  }, [loading, stepNumber]);
 
   const handleInputChange = useCallback((key: string, value: string) => {
     setInputs((prev) => ({ ...prev, [key]: value }));

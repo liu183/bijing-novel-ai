@@ -124,3 +124,58 @@ ${pacing ? `## 节奏参考\n${pacing}` : ''}
     );
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { chapterNumber, title, content } = body;
+
+    if (!chapterNumber) {
+      return NextResponse.json({ error: 'chapterNumber is required' }, { status: 400 });
+    }
+
+    const chapter = await db.chapter.update({
+      where: { novelId_number: { novelId: id, number: chapterNumber } },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(content !== undefined && {
+          content,
+          wordCount: content.replace(/\s/g, '').length,
+        }),
+      },
+    });
+
+    return NextResponse.json(chapter);
+  } catch (error) {
+    console.error('Failed to update chapter:', error);
+    return NextResponse.json({ error: 'Failed to update chapter' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const chapterNumber = parseInt(searchParams.get('number') || '0');
+
+    if (!chapterNumber) {
+      return NextResponse.json({ error: 'chapterNumber query param is required' }, { status: 400 });
+    }
+
+    await db.chapter.delete({
+      where: { novelId_number: { novelId: id, number: chapterNumber } },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete chapter:', error);
+    return NextResponse.json({ error: 'Failed to delete chapter' }, { status: 500 });
+  }
+}

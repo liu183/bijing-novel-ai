@@ -156,8 +156,6 @@ export function WorkspaceView() {
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [mobileTab, setMobileTab] = useState<'steps' | 'content' | 'chat'>('content');
-  const [stepSidebarOpen, setStepSidebarOpen] = useState(false);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
 
@@ -213,7 +211,6 @@ export function WorkspaceView() {
   const handleStepClick = (stepNumber: number) => {
     setCurrentStep(stepNumber);
     setEditing(false);
-    setStepSidebarOpen(false);
     // On mobile, switch to content tab
     setMobileTab('content');
   };
@@ -221,6 +218,33 @@ export function WorkspaceView() {
   // Handle generate step
   const handleGenerateStep = (stepNumber?: number) => {
     const num = stepNumber || currentStep;
+
+    // Check step dependencies
+    const stepConfig = getStepConfig(num);
+    if (stepConfig?.dependencies) {
+      const missingDeps = stepConfig.dependencies.filter(
+        dep => !novelSteps.find(s => s.stepNumber === dep && (s.status === 'completed' || s.status === 'locked'))
+      );
+      if (missingDeps.length > 0) {
+        const depNames = missingDeps.map(d => {
+          const cfg = getStepConfig(d);
+          return `第${d}步 ${cfg?.title || ''}`;
+        });
+        toast.warning('建议先完成前置步骤', {
+          description: `请先完成: ${depNames.join('、')}`,
+          action: {
+            label: '继续生成',
+            onClick: () => {
+              setGenerateStepNumber(num);
+              setGenerateDialogOpen(true);
+            },
+          },
+          duration: 6000,
+        });
+        return;
+      }
+    }
+
     setGenerateStepNumber(num);
     setGenerateDialogOpen(true);
   };
@@ -240,8 +264,6 @@ export function WorkspaceView() {
       setEditing(true);
     }
   };
-
-  const stepContent = currentStepData?.content || '';
 
   // Handle save
   const handleSave = async () => {
@@ -637,56 +659,77 @@ export function WorkspaceView() {
       <div className="flex flex-col flex-1 md:hidden overflow-hidden">
         {/* Mobile content area */}
         <div className="flex-1 overflow-hidden">
-          {mobileTab === 'steps' && (
-            <div className="h-full">
-              <Sheet open={true} onOpenChange={() => setMobileTab('content')}>
-                <SheetContent side="left" className="w-full p-0">
-                  <StepSidebar
-                    currentNovel={currentNovel}
-                    currentStep={currentStep}
-                    novelSteps={novelSteps}
-                    onStepClick={handleStepClick}
-                    onGenerateStep={handleGenerateStep}
-                    onGenerateChapter={handleGenerateChapter}
-                    isChapterGenerating={isChapterGenerating}
-                  />
-                </SheetContent>
-              </Sheet>
-            </div>
-          )}
-          {mobileTab === 'content' && (
-            <StepContentPanel
-              stepConfig={currentStepConfig}
-              stepData={currentStepData}
-              phaseColors={phaseColors}
-              phaseName={currentPhase?.name || ''}
-              StepIcon={StepIcon}
-              editing={editing}
-              editContent={editContent}
-              saving={saving}
-              isGenerating={isGenerating}
-              currentStep={currentStep}
-              onEditToggle={handleEditToggle}
-              onEditContentChange={setEditContent}
-              onSave={handleSave}
-              onGenerate={() => handleGenerateStep()}
-              onConfirm={handleConfirmStep}
-              onUnlock={handleUnlockStep}
-            />
-          )}
-          {mobileTab === 'chat' && (
-            <ChatPanel
-              messages={chatMessages}
-              chatInput={chatInput}
-              isChatLoading={isChatLoading}
-              onChatInputChange={setChatInput}
-              onSendChat={handleSendChat}
-              onChatKeyDown={handleChatKeyDown}
-              chatEndRef={chatEndRef}
-              chatInputRef={chatInputRef}
-              onClearMessages={clearChatMessages}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            {mobileTab === 'steps' ? (
+              <motion.div
+                key="mobile-steps"
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -20, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="h-full"
+              >
+                <StepSidebar
+                  currentNovel={currentNovel}
+                  currentStep={currentStep}
+                  novelSteps={novelSteps}
+                  onStepClick={handleStepClick}
+                  onGenerateStep={handleGenerateStep}
+                  onGenerateChapter={handleGenerateChapter}
+                  isChapterGenerating={isChapterGenerating}
+                />
+              </motion.div>
+            ) : mobileTab === 'content' ? (
+              <motion.div
+                key="mobile-content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="h-full"
+              >
+                <StepContentPanel
+                  stepConfig={currentStepConfig}
+                  stepData={currentStepData}
+                  phaseColors={phaseColors}
+                  phaseName={currentPhase?.name || ''}
+                  StepIcon={StepIcon}
+                  editing={editing}
+                  editContent={editContent}
+                  saving={saving}
+                  isGenerating={isGenerating}
+                  currentStep={currentStep}
+                  onEditToggle={handleEditToggle}
+                  onEditContentChange={setEditContent}
+                  onSave={handleSave}
+                  onGenerate={() => handleGenerateStep()}
+                  onConfirm={handleConfirmStep}
+                  onUnlock={handleUnlockStep}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="mobile-chat"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 20, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="h-full"
+              >
+                <ChatPanel
+                  messages={chatMessages}
+                  chatInput={chatInput}
+                  isChatLoading={isChatLoading}
+                  onChatInputChange={setChatInput}
+                  onSendChat={handleSendChat}
+                  onChatKeyDown={handleChatKeyDown}
+                  chatEndRef={chatEndRef}
+                  chatInputRef={chatInputRef}
+                  onClearMessages={clearChatMessages}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Mobile tab bar */}
@@ -1264,17 +1307,45 @@ function ChatPanel({
                 className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                    isUser
-                      ? 'bg-amber-500 text-white rounded-br-sm'
-                      : 'bg-muted/80 dark:bg-muted/40 text-foreground rounded-bl-sm'
+                  className={`max-w-[85%] group ${
+                    isUser ? '' : ''
                   }`}
                 >
-                  {isUser ? (
-                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-                  ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-li:leading-relaxed prose-strong:text-foreground">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <div
+                    className={`rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                      isUser
+                        ? 'bg-amber-500 text-white rounded-br-sm'
+                        : 'bg-muted/80 dark:bg-muted/40 text-foreground rounded-bl-sm'
+                    }`}
+                  >
+                    {isUser ? (
+                      <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                    ) : (
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-li:leading-relaxed prose-strong:text-foreground">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+                  {!isUser && (
+                    <div className="flex items-center justify-between mt-1.5 px-1">
+                      {msg.createdAt && (
+                        <span className="text-[10px] text-muted-foreground/50">
+                          {new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {msg.content && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.content);
+                            toast.success('已复制');
+                          }}
+                        >
+                          <Copy className="size-3" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

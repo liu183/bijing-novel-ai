@@ -39,7 +39,23 @@ import {
   Type,
   AlignJustify,
   CaseSensitive,
+  Pencil,
+  Check,
+  X,
+  Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 // ─── Reader Preferences ───
@@ -47,6 +63,7 @@ interface ReaderPrefs {
   fontSize: 'small' | 'medium' | 'large';
   lineHeight: 'compact' | 'normal' | 'relaxed';
   fontFamily: 'sans' | 'serif';
+  theme: 'default' | 'sepia' | 'green' | 'midnight';
 }
 
 const READER_PREFS_KEY = 'reader-prefs';
@@ -54,6 +71,7 @@ const DEFAULT_PREFS: ReaderPrefs = {
   fontSize: 'medium',
   lineHeight: 'normal',
   fontFamily: 'serif',
+  theme: 'default',
 };
 
 function loadReaderPrefs(): ReaderPrefs {
@@ -92,6 +110,13 @@ const fontFamilyMap: Record<string, string> = {
   serif: 'font-serif',
 };
 
+const themeStyles: Record<string, { bg: string; text: string; border: string }> = {
+  default: { bg: 'bg-background/50', text: 'text-foreground/90', border: 'border-border/30' },
+  sepia: { bg: 'bg-amber-50/80 dark:bg-amber-950/20', text: 'text-amber-950/90 dark:text-amber-100/90', border: 'border-amber-200/50 dark:border-amber-800/30' },
+  green: { bg: 'bg-emerald-50/80 dark:bg-emerald-950/20', text: 'text-emerald-950/90 dark:text-emerald-100/90', border: 'border-emerald-200/50 dark:border-emerald-800/30' },
+  midnight: { bg: 'bg-zinc-900 dark:bg-zinc-950', text: 'text-zinc-200', border: 'border-zinc-700/30' },
+};
+
 export function ReaderView() {
   const currentNovel = useAppStore((s) => s.currentNovel);
   const setCurrentNovel = useAppStore((s) => s.setCurrentNovel);
@@ -107,6 +132,9 @@ export function ReaderView() {
   const [localChapterNum, setLocalChapterNum] = useState(1);
   const [contentKey, setContentKey] = useState(0);
   const [readerPrefs, setReaderPrefs] = useState<ReaderPrefs>(() => loadReaderPrefs());
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const updatePref = useCallback(<K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => {
     setReaderPrefs((prev) => {
       const next = { ...prev, [key]: value };
@@ -205,6 +233,57 @@ export function ReaderView() {
     },
     [chapters]
   );
+
+  // Save chapter title
+  const handleSaveTitle = async () => {
+    if (!editTitleValue.trim() || !currentNovel || !currentChapter) return;
+    try {
+      const res = await fetch(`/api/novels/${currentNovel.id}/chapters`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapterNumber: currentChapter.number,
+          title: editTitleValue.trim(),
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        const updatedChapters = currentNovel.chapters?.map((ch) =>
+          ch.number === currentChapter.number ? { ...ch, title: updated.title } : ch
+        );
+        setCurrentNovel({ ...currentNovel, chapters: updatedChapters });
+        toast.success('章节标题已更新');
+        setEditingTitle(false);
+      }
+    } catch {
+      toast.error('更新失败');
+    }
+  };
+
+  // Delete chapter
+  const handleDeleteChapter = async () => {
+    if (!currentNovel || !currentChapter) return;
+    try {
+      const res = await fetch(`/api/novels/${currentNovel.id}/chapters?number=${currentChapter.number}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        const updatedChapters = currentNovel.chapters?.filter((ch) => ch.number !== currentChapter.number) || [];
+        const newChapters = updatedChapters.length > 0 ? updatedChapters : [];
+        setCurrentNovel({ ...currentNovel, chapters: newChapters });
+        toast.success('章节已删除');
+        setDeleteDialogOpen(false);
+        if (newChapters.length > 0) {
+          const prevChapter = newChapters[Math.max(0, newChapters.length - 1)];
+          handleChapterSelect(String(prevChapter.number));
+        } else {
+          setViewMode('workspace');
+        }
+      }
+    } catch {
+      toast.error('删除失败');
+    }
+  };
 
   // Keyboard navigation
   useEffect(() => {
@@ -483,6 +562,34 @@ export function ReaderView() {
                     ))}
                   </div>
                 </div>
+
+                <Separator />
+
+                {/* Theme */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">阅读主题</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 'default', label: '默认', color: 'bg-zinc-100 dark:bg-zinc-800' },
+                      { id: 'sepia', label: '护眼', color: 'bg-amber-100 dark:bg-amber-900' },
+                      { id: 'green', label: '自然', color: 'bg-emerald-100 dark:bg-emerald-900' },
+                      { id: 'midnight', label: '夜间', color: 'bg-zinc-900' },
+                    ].map((theme) => (
+                      <button
+                        key={theme.id}
+                        onClick={() => updatePref('theme', theme.id as ReaderPrefs['theme'])}
+                        className={`flex flex-col items-center gap-1.5 rounded-lg border p-2 transition-all text-[11px] ${
+                          readerPrefs.theme === theme.id
+                            ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20'
+                            : 'border-border hover:border-amber-300 dark:hover:border-amber-700'
+                        }`}
+                      >
+                        <div className={`h-6 w-8 rounded ${theme.color} border border-border/50`} />
+                        {theme.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </PopoverContent>
           </Popover>
@@ -500,9 +607,64 @@ export function ReaderView() {
                   <Hash className="size-3" />
                   第 {currentChapter.number} 章
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-snug tracking-tight">
-                  {currentChapter.title}
-                </h1>
+                <div className="flex items-center justify-center gap-2 group">
+                  {editingTitle ? (
+                    <div className="flex items-center gap-2 flex-1 max-w-md">
+                      <input
+                        type="text"
+                        value={editTitleValue}
+                        onChange={(e) => setEditTitleValue(e.target.value)}
+                        className="flex-1 text-2xl sm:text-3xl font-bold bg-transparent border-b-2 border-amber-500 outline-none py-1 text-center"
+                        autoFocus
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTitle(); if (e.key === 'Escape') setEditingTitle(false); }}
+                      />
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveTitle}>
+                        <Check className="size-4 text-emerald-500" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingTitle(false)}>
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="text-2xl sm:text-3xl font-bold text-foreground leading-snug tracking-tight">{currentChapter.title}</h2>
+                      <Button
+                        size="icon" variant="ghost"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => { setEditTitleValue(currentChapter?.title || ''); setEditingTitle(true); }}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon" variant="ghost"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>确认删除章节</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              确定要删除「{currentChapter?.title}」吗？此操作不可撤销。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleDeleteChapter}
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                            >
+                              确认删除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
+                </div>
                 {currentChapter.wordCount > 0 && (
                   <p className="mt-3 text-sm text-muted-foreground">
                     共 {formatWordCount(currentChapter.wordCount)}
@@ -511,8 +673,10 @@ export function ReaderView() {
               </header>
 
               {/* Chapter Content */}
-              <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} text-foreground/90`}>
-                {renderContent(currentChapter.content)}
+              <div className={`rounded-lg border p-6 sm:p-8 ${themeStyles[readerPrefs.theme].bg} ${themeStyles[readerPrefs.theme].border}`}>
+                <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} ${themeStyles[readerPrefs.theme].text}`}>
+                  {renderContent(currentChapter.content)}
+                </div>
               </div>
 
               {/* Chapter Footer */}

@@ -235,6 +235,9 @@
   .animate-gradient {
     animation: none !important;
   }
+  main {
+    animation: none;
+  }
 }
 
 /* Card hover effect */
@@ -262,4 +265,68 @@
 .dark ::selection {
   background: oklch(0.45 0.15 65);
   color: oklch(0.95 0.02 85);
+}
+
+/* Page load animation */
+main {
+  animation: page-enter 0.4s ease-out;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media print {
+  /* Hide all navigation and interactive elements */
+  nav,
+  header,
+  footer,
+  button,
+  [role="tablist"],
+  [role="dialog"],
+  .sticky,
+  [data-radix-popper-content-wrapper],
+  [data-state="open"],
+  [class*="sheet"],
+  [class*="popover"],
+  [class*="tooltip"] {
+    display: none !important;
+  }
+
+  /* Clean reading area */
+  .prose {
+    max-width: 100% !important;
+    font-size: 12pt !important;
+    line-height: 1.8 !important;
+  }
+
+  /* Remove backgrounds */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Page breaks */
+  article {
+    page-break-after: always;
+  }
+
+  /* Remove shadows and borders */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Ensure content fills page */
+  main, section {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
 }

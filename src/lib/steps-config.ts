@@ -9,6 +9,7 @@ export interface StepConfig {
   icon: string;
   needConfirm: boolean;
   inputFields: InputField[];
+  dependencies: number[];
 }
 
 export interface InputField {
@@ -31,6 +32,7 @@ export const STEPS: StepConfig[] = [
     description: '基于类型偏好、主题和关键词，生成3-6个200字故事概念进行快速比较和选择。',
     icon: 'Lightbulb',
     needConfirm: true,
+    dependencies: [],
     inputFields: [
       { key: 'genre', label: '类型偏好', type: 'select', required: true, options: [
         { label: '都市脑洞', value: '都市脑洞' },
@@ -68,6 +70,7 @@ export const STEPS: StepConfig[] = [
     description: '将选定的200字概念扩展为≤1000字的一页提要。这是项目的永久锚点，任何结构性变更必须先更新此提要。',
     icon: 'FileText',
     needConfirm: true,
+    dependencies: [1],
     inputFields: [
       { key: 'selectedConcept', label: '选定的概念', type: 'textarea', placeholder: '从Step 1中选定的故事概念...', required: true },
       { key: 'endingPreference', label: '结局偏好', type: 'select', options: [
@@ -88,6 +91,7 @@ export const STEPS: StepConfig[] = [
     description: '设计详细的角色档案，确保动机、软肋、关系张力和角色弧光都可在叙事中执行。',
     icon: 'Users',
     needConfirm: false,
+    dependencies: [1, 2],
     inputFields: [
       { key: 'coreCharacterCount', label: '核心角色数量', type: 'select', defaultValue: '5', options: [
         { label: '3-4人', value: '4' },
@@ -107,6 +111,7 @@ export const STEPS: StepConfig[] = [
     description: '基于提要的故事冲突，确立主题命题、反论证和母题列表。',
     icon: 'Compass',
     needConfirm: false,
+    dependencies: [1, 2, 3],
     inputFields: [
       { key: 'themeKeywords', label: '主题关键词', type: 'text', placeholder: '如：命运/自由意志/真相/信任...' },
       { key: 'symbolismDensity', label: '象征密度', type: 'select', options: [
@@ -125,6 +130,7 @@ export const STEPS: StepConfig[] = [
     description: '将提要映射到可执行的节拍表，明确每个节拍的叙事功能和角色状态变化。',
     icon: 'GitBranch',
     needConfirm: false,
+    dependencies: [2, 4],
     inputFields: [
       { key: 'structureTemplate', label: '结构模板', type: 'select', defaultValue: '15-beat', options: [
         { label: '三幕式', value: '3-act' },
@@ -147,6 +153,7 @@ export const STEPS: StepConfig[] = [
     description: '将节拍表扩展为详细的场景列表，明确每个场景的目标、冲突、转折和信息收获。',
     icon: 'List',
     needConfirm: false,
+    dependencies: [2, 5],
     inputFields: [
       { key: 'targetSceneCount', label: '目标场景数', type: 'select', options: [
         { label: '25-35场（短篇）', value: '30' },
@@ -169,6 +176,7 @@ export const STEPS: StepConfig[] = [
     description: '识别关键场景（约15%），设计8-12个关键场面卡片，每个包含地点、人物、动作爆点和视觉冲击。',
     icon: 'Film',
     needConfirm: false,
+    dependencies: [6],
     inputFields: [
       { key: 'totalEvents', label: '总事件数', type: 'text', placeholder: '根据目标字数和场景数自动计算' },
       { key: 'keySceneCount', label: '关键场面数', type: 'select', options: [
@@ -187,6 +195,7 @@ export const STEPS: StepConfig[] = [
     description: '选择5-8个场面进行完整对白编写，包含潜台词和动作提示。',
     icon: 'MessageCircle',
     needConfirm: false,
+    dependencies: [3, 6],
     inputFields: [
       { key: 'dialogueStyle', label: '对白风格', type: 'select', options: [
         { label: '简洁利落', value: '简洁利落' },
@@ -206,6 +215,7 @@ export const STEPS: StepConfig[] = [
     description: '基于母题设计副线，规划信息释放时序，将伏笔分布到场景中。',
     icon: 'Layers',
     needConfirm: false,
+    dependencies: [4, 7],
     inputFields: [
       { key: 'themeKeywords', label: '主题关键词', type: 'text', placeholder: '从Step 4继承...' },
       { key: 'symbolismDensity', label: '象征密度', type: 'select', options: [
@@ -224,6 +234,7 @@ export const STEPS: StepConfig[] = [
     description: '分析场景密度，生成节奏曲线，识别张力峰值，设计转场策略。',
     icon: 'Activity',
     needConfirm: false,
+    dependencies: [5, 7, 8],
     inputFields: [
       { key: 'pacingExpectation', label: '整体节奏预期', type: 'select', options: [
         { label: '紧凑快节奏', value: '紧凑' },
@@ -246,6 +257,7 @@ export const STEPS: StepConfig[] = [
     description: '基于主题和角色弧光，提供2-3个结局方案，每个方案包含权力终局、角色命运和世界余波。',
     icon: 'Flag',
     needConfirm: true,
+    dependencies: [4, 9, 10],
     inputFields: [
       { key: 'endingPreference', label: '结局类型偏好', type: 'select', options: [
         { label: 'A型：开放悬念', value: 'A' },
@@ -270,6 +282,7 @@ export const STEPS: StepConfig[] = [
     description: '基于反馈进行迭代改进，生成问题清单、重写策略和风险评估。',
     icon: 'RefreshCcw',
     needConfirm: false,
+    dependencies: [1, 8, 10, 11],
     inputFields: [
       { key: 'feedbackPoints', label: '反馈要点', type: 'textarea', placeholder: '需要改进的具体问题...' },
       { key: 'changeScope', label: '允许变更范围', type: 'select', options: [
