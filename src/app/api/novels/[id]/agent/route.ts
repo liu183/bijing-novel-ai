@@ -1,156 +1,19 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAIService } from '@/lib/ai';
-import { STEPS } from '@/lib/steps-config';
 import { getAgent, getSkillsForAgent, type AgentRole } from '@/lib/agents';
-
-// ---------------------------------------------------------------------------
-// Helper: emit events to the WebSocket agent-service (port 3003)
-// ---------------------------------------------------------------------------
+import {
+  emitToAgentService,
+  saveActivity,
+  buildNovelContext,
+  getRecentMessages,
+} from '@/lib/agent-helpers';
 
 // Vercel Serverless Function 最大执行时间（秒）
 export const maxDuration = 60;
 
-async function emitToAgentService(event: {
-  type: string;
-  agentId: string;
-  agentName: string;
-  agentRole: string;
-  novelId: string;
-  timestamp: number;
-  data: Record<string, unknown>;
-}) {
-  try {
-    await fetch('/api/emit?XTransformPort=3003', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(event),
-    });
-  } catch (e) {
-    // Don't fail if WS service is down
-    console.warn('Failed to emit to agent service:', e);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Helper: save an AgentActivity record & emit WS event
-// ---------------------------------------------------------------------------
-
-async function saveActivity(params: {
-  novelId: string;
-  agentId: string;
-  agentName: string;
-  agentRole: string;
-  type: string;
-  content?: string;
-  skillName?: string;
-  skillDescription?: string;
-  status?: string;
-  metadata?: Record<string, unknown>;
-}) {
-  const now = Date.now();
-  const activity = await db.agentActivity.create({
-    data: {
-      novelId: params.novelId,
-      agentId: params.agentId,
-      agentName: params.agentName,
-      type: params.type,
-      content: params.content ?? '',
-      skillName: params.skillName ?? null,
-      skillDescription: params.skillDescription ?? null,
-      status: params.status ?? null,
-      metadata: JSON.stringify(params.metadata ?? {}),
-    },
-  });
-
-  // Fire-and-forget WS notification
-  emitToAgentService({
-    type: params.type as
-      | 'thinking'
-      | 'skill_start'
-      | 'skill_complete'
-      | 'message'
-      | 'error'
-      | 'status_change',
-    agentId: params.agentId,
-    agentName: params.agentName,
-    agentRole: params.agentRole,
-    novelId: params.novelId,
-    timestamp: now,
-    data: {
-      content: params.content,
-      skillName: params.skillName,
-      skillDescription: params.skillDescription,
-      status: params.status,
-      metadata: params.metadata,
-    },
-  }).catch(() => {});
-
-  return activity;
-}
-
-// ---------------------------------------------------------------------------
-// Helper: build the novel-context block injected into every agent prompt
-// ---------------------------------------------------------------------------
-
-async function buildNovelContext(novelId: string): Promise<string> {
-  const novel = await db.novel.findUnique({ where: { id: novelId } });
-  if (!novel) return '';
-
-  const completedSteps = await db.novelStep.findMany({
-    where: { novelId, status: 'completed' },
-    orderBy: { stepNumber: 'asc' },
-  });
-
-  const chapters = await db.chapter.findMany({
-    where: { novelId, status: 'completed' },
-    orderBy: { number: 'asc' },
-    take: 5,
-  });
-
-  const stepsContext = completedSteps
-    .map((s) => {
-      const cfg = STEPS.find((sc) => sc.number === s.stepNumber);
-      return `### 第${s.stepNumber}步：${cfg?.title ?? ''}\n${s.content}`;
-    })
-    .join('\n\n');
-
-  const chaptersContext = chapters
-    .map((c) => `### 第${c.number}章：${c.title}\n${c.content.slice(0, 1500)}`)
-    .join('\n\n');
-
-  let ctx = `## 当前小说信息\n- **标题**：${novel.title}\n- **类型**：${novel.genre}\n- **子类型**：${novel.subgenre || '未设定'}\n- **风格**：${novel.style}\n- **目标字数**：${novel.targetWords}字\n- **当前进度**：第${novel.currentStep}/12步\n- **状态**：${novel.status}\n`;
-
-  if (novel.description) {
-    ctx += `- **描述**：${novel.description}\n`;
-  }
-
-  if (stepsContext) {
-    ctx += `\n## 已完成的创作步骤\n${stepsContext}`;
-  }
-
-  if (chaptersContext) {
-    ctx += `\n## 已完成的章节（最近5章）\n${chaptersContext}`;
-  }
-
-  return ctx;
-}
-
-// ---------------------------------------------------------------------------
-// Helper: get recent chat history for context window
-// ---------------------------------------------------------------------------
-
-async function getRecentMessages(
-  novelId: string,
-  limit = 10
-): Promise<{ role: string; content: string }[]> {
-  const messages = await db.chatMessage.findMany({
-    where: { novelId },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-  });
-  return messages.reverse().map((m) => ({ role: m.role, content: m.content }));
-}
+// Re-export for convenience if other agent routes need emitToAgentService directly
+export { emitToAgentService };
 
 // ---------------------------------------------------------------------------
 // POST /api/novels/[id]/agent

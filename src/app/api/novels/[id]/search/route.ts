@@ -17,7 +17,7 @@ export async function GET(
 
     const keyword = query.trim();
 
-    // Search steps
+    // Search steps (content needed server-side for excerpt, but not returned in response)
     const stepMatches = await db.novelStep.findMany({
       where: {
         novelId: id,
@@ -26,16 +26,16 @@ export async function GET(
       select: { stepNumber: true, title: true, content: true },
     });
 
-    // Search chapters
+    // Search chapters (content needed server-side for excerpt, but not returned in response)
     const chapterMatches = await db.chapter.findMany({
       where: {
         novelId: id,
         content: { contains: keyword },
       },
-      select: { number: true, title: true, content: true },
+      select: { id: true, number: true, title: true, wordCount: true, content: true },
     });
 
-    // Build results with excerpts
+    // Build results with excerpts — full content stays server-side only
     const results = [
       ...stepMatches.map((step) => ({
         type: 'step' as const,
@@ -47,6 +47,7 @@ export async function GET(
         type: 'chapter' as const,
         id: chapter.number,
         title: chapter.title,
+        wordCount: chapter.wordCount,
         excerpt: buildExcerpt(chapter.content, keyword),
       })),
     ];

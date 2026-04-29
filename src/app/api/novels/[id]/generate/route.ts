@@ -64,7 +64,9 @@ export async function POST(
     const systemPrompt = getSystemPrompt(stepNumber, novel, previousSteps);
     const userPrompt = getUserInputPrompt(stepNumber, inputs || {});
 
-    console.log(`[Generate] Novel: ${novel.title}, Step: ${stepNumber}, Messages: ${previousSteps.length} previous steps`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Generate] Novel: ${novel.title}, Step: ${stepNumber}, Messages: ${previousSteps.length} previous steps`);
+    }
 
     const completion = await ai.chat.completions.create({
       messages: [
@@ -80,7 +82,9 @@ export async function POST(
       throw new Error('AI 返回了空内容，请重试');
     }
 
-    console.log(`[Generate] Success: ${content.length} chars`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Generate] Success: ${content.length} chars`);
+    }
 
     // Save result
     const step = await db.novelStep.upsert({

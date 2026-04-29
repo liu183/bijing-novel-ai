@@ -155,6 +155,8 @@ export function ReaderView() {
   const [editContentValue, setEditContentValue] = useState('');
   const [isSavingContent, setIsSavingContent] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [autoSaveTimestamp, setAutoSaveTimestamp] = useState<string>('');
   const [isDirty, setIsDirty] = useState(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [streamMode, setStreamMode] = useState(false);
@@ -550,6 +552,7 @@ export function ReaderView() {
   const doAutoSave = useCallback(async () => {
     if (!currentNovel || !currentChapter || !isDirty) return;
     setIsAutoSaving(true);
+    setAutoSaveStatus('saving');
     try {
       const res = await fetch(`/api/novels/${currentNovel.id}/chapters`, {
         method: 'PUT',
@@ -570,7 +573,13 @@ export function ReaderView() {
         setCurrentNovel({ ...currentNovel, chapters: updatedChapters });
         setContentKey((k) => k + 1);
         setIsDirty(false);
-        toast.success('已自动保存');
+        // Subtle indicator instead of toast
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setAutoSaveStatus('saved');
+        setAutoSaveTimestamp(timeStr);
+        // Fade out after 3 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
       }
     } catch {
       // silently fail, user can still manually save
@@ -948,6 +957,7 @@ export function ReaderView() {
                       <button
                         key={sz}
                         onClick={() => updatePref('fontSize', sz)}
+                        aria-label={`字号: ${sz === 'small' ? '小' : sz === 'medium' ? '中' : '大'}`}
                         className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition-colors ${
                           readerPrefs.fontSize === sz
                             ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
@@ -1026,6 +1036,7 @@ export function ReaderView() {
                       <button
                         key={theme.id}
                         onClick={() => updatePref('theme', theme.id as ReaderPrefs['theme'])}
+                        aria-label={`阅读主题: ${theme.label}`}
                         className={`flex flex-col items-center gap-1.5 rounded-lg border p-2 transition-all text-[11px] ${
                           readerPrefs.theme === theme.id
                             ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20'
@@ -1046,6 +1057,23 @@ export function ReaderView() {
 
       {/* Reading Area */}
       <div className="flex-1 bg-stone-50/50 dark:bg-stone-950/50 relative">
+        {/* Auto-save indicator */}
+        {isEditingContent && autoSaveStatus !== 'idle' && (
+          <div className="absolute top-3 right-4 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm transition-opacity duration-500">
+            {autoSaveStatus === 'saving' && (
+              <>
+                <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground">保存中...</span>
+              </>
+            )}
+            {autoSaveStatus === 'saved' && (
+              <>
+                <Check className="size-3 text-emerald-500" />
+                <span className="text-emerald-600 dark:text-emerald-400">已保存 {autoSaveTimestamp}</span>
+              </>
+            )}
+          </div>
+        )}
         {/* Desktop TOC Panel */}
         <AnimatePresence>
           {tocOpen && (
@@ -1345,8 +1373,8 @@ export function ReaderView() {
                   </div>
                 </motion.div>
               ) : (
-                <div className={`rounded-lg border p-6 sm:p-8 ${themeStyles[readerPrefs.theme].bg} ${themeStyles[readerPrefs.theme].border}`}>
-                  <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} ${themeStyles[readerPrefs.theme].text}`}>
+                <div className={`rounded-lg border p-6 sm:p-8 ${themeStyles[readerPrefs.theme].bg} ${themeStyles[readerPrefs.theme].border} transition-colors duration-300`}>
+                  <div className={`space-y-1 ${fontFamilyMap[readerPrefs.fontFamily]} ${themeStyles[readerPrefs.theme].text} transition-colors duration-300`}>
                     {renderContent(currentChapter.content)}
                   </div>
                 </div>

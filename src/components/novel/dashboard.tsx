@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
 import { useAppStore, type NovelData } from '@/store/app-store';
+import { usePaginatedList } from '@/hooks/use-pagination';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -40,6 +41,9 @@ import {
   Wand2,
   Monitor,
   Pin,
+  Trophy,
+  Crown,
+  Award,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -71,14 +75,23 @@ import { zhCN } from 'date-fns/locale';
 import { exportNovelToDocx } from '@/lib/export-docx';
 import { exportNovelToDocxFormatted } from '@/lib/export-docx-formatted';
 import { addExportHistory } from '@/lib/export-utils';
-import { TOTAL_STEPS, genreColors } from '@/lib/constants';
+import { TOTAL_STEPS, genreColors, getAvatarColor, getAvatarInitial } from '@/lib/constants';
 
-const statusConfig: Record<NovelData['status'], { label: string; className: string }> = {
-  draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
-  writing: { label: '创作中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
-  completed: { label: '已完成', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' },
-  archived: { label: '已归档', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500' },
+const statusConfig: Record<NovelData['status'], { label: string; className: string; dotColor: string }> = {
+  draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', dotColor: 'bg-gray-400' },
+  writing: { label: '创作中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', dotColor: 'bg-amber-500 animate-pulse' },
+  completed: { label: '已完成', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', dotColor: 'bg-emerald-500' },
+  archived: { label: '已归档', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500', dotColor: 'bg-gray-400 dark:bg-gray-600' },
 };
+
+// Word count milestone config
+const milestones: Array<{ threshold: number; label: string; icon: typeof Trophy }> = [
+  { threshold: 10000, label: '1万+', icon: Trophy },
+  { threshold: 50000, label: '5万+', icon: Award },
+  { threshold: 100000, label: '10万+', icon: Crown },
+  { threshold: 200000, label: '20万+', icon: Crown },
+  { threshold: 500000, label: '50万+', icon: Crown },
+];
 
 // Extract helper functions outside the component for stability
 function formatDate(dateStr: string): string {
@@ -173,9 +186,7 @@ export function DashboardView() {
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
-  const [displayCount, setDisplayCount] = useState(6);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const PAGE_SIZE = 6;
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const togglePinnedNovel = useCallback((id: string) => {
     setPinnedNovelIds((prev) => {
@@ -199,14 +210,6 @@ export function DashboardView() {
       setLoading(false);
     }
   }, [setNovels]);
-
-  const handleLoadMore = useCallback(async () => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    await new Promise((r) => setTimeout(r, 400));
-    setDisplayCount((prev) => prev + PAGE_SIZE);
-    setLoadingMore(false);
-  }, [loadingMore]);
 
   const handleEditNovel = (novel: NovelData) => {
     setEditingNovel(novel);
@@ -282,6 +285,7 @@ export function DashboardView() {
   }, []);
 
   const handleDuplicateNovel = useCallback(async (novel: NovelData) => {
+    setDuplicatingId(novel.id);
     try {
       const res = await fetch(`/api/novels/${novel.id}/duplicate`, { method: 'POST' });
       if (res.ok) {
@@ -293,6 +297,8 @@ export function DashboardView() {
       }
     } catch {
       toast.error('复制失败');
+    } finally {
+      setDuplicatingId(null);
     }
   }, [fetchNovels]);
 
@@ -320,11 +326,8 @@ export function DashboardView() {
     });
   }, [filteredNovels, pinnedNovelIds]);
 
-  // Paginated display
-  const displayedNovels = useMemo(() => {
-    return sortedNovels.slice(0, displayCount);
-  }, [sortedNovels, displayCount]);
-  const hasMore = sortedNovels.length > displayCount;
+  // Paginated display using usePaginatedList hook
+  const { displayItems: displayedNovels, hasMore, loadMore, loadingMore } = usePaginatedList(sortedNovels, 6);
 
   // Compute stats
   const totalNovels = novels.length;
@@ -493,8 +496,8 @@ export function DashboardView() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-200/30 to-transparent rounded-bl-full" />
               <div className="relative flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
-                    <BookOpen className="size-6 text-white" />
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${getAvatarColor(recentNovel.title)} shadow-sm text-white font-bold text-lg shrink-0`}>
+                    {getAvatarInitial(recentNovel.title)}
                   </div>
                   <div>
                     <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-0.5">继续上次创作</p>
@@ -590,23 +593,29 @@ export function DashboardView() {
 
         {/* Empty State (no novels at all) */}
         {!loading && novels.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-16 px-4">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 mb-6">
-              <BookMarked className="size-10 text-amber-600 dark:text-amber-400" />
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-amber-200/60 dark:border-amber-800/30 py-20 px-4 animate-gentle-float">
+            <div className="relative mb-8">
+              <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 shadow-lg shadow-amber-200/40 dark:shadow-amber-900/20">
+                <span className="text-6xl">📝</span>
+              </div>
+              <div className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md">
+                <Sparkles className="size-4 text-white" />
+              </div>
             </div>
-            <h3 className="text-lg font-semibold">还没有小说？</h3>
-            <p className="mt-2 max-w-md text-center text-sm text-muted-foreground">
-              点击上方「新建小说」开始创作！AI 将辅助您从灵感到完稿的每一步。
+            <h3 className="text-2xl font-bold tracking-tight text-gradient-amber">开始你的第一部作品</h3>
+            <p className="mt-3 max-w-md text-center text-sm text-muted-foreground leading-relaxed">
+              AI将辅助你完成从创意构思到成稿的全过程
             </p>
             <Button
               onClick={() => setCreateDialogOpen(true)}
-              className="mt-6 gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md hover:from-amber-600 hover:to-orange-700 hover:shadow-lg transition-all"
+              size="lg"
+              className="mt-8 gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 hover:shadow-xl hover:shadow-amber-500/30 transition-all"
             >
-              <Plus className="size-4" />
-              新建小说
+              <Plus className="size-5" />
+              创建第一部小说
             </Button>
             {/* Template suggestions */}
-            <div className="mt-8 text-center">
+            <div className="mt-10 text-center">
               <p className="text-xs text-muted-foreground mb-3">试试模板：</p>
               <div className="flex flex-wrap justify-center gap-2">
                 {['穿越重生', '修仙玄幻', '悬疑推理'].map((template) => (
@@ -629,11 +638,11 @@ export function DashboardView() {
 
         {/* No filter results */}
         {!loading && novels.length > 0 && filteredNovels.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-12 px-4">
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-12 px-4 animate-list-fade-in">
             <Search className="size-10 text-muted-foreground/40 mb-4" />
             <h3 className="text-base font-semibold text-muted-foreground">未找到匹配的小说</h3>
             <p className="mt-2 max-w-md text-center text-sm text-muted-foreground/70">
-              尝试更换搜索关键词或清除筛选条件
+              试试其他关键词
             </p>
             <Button
               variant="outline"
@@ -664,6 +673,7 @@ export function DashboardView() {
                 onDuplicate={handleDuplicateNovel}
                 isPinned={pinnedNovelIds.includes(novel.id)}
                 onTogglePin={togglePinnedNovel}
+                duplicatingId={duplicatingId}
               />
             ))}
           </div>
@@ -677,7 +687,7 @@ export function DashboardView() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleLoadMore}
+                onClick={loadMore}
                 disabled={loadingMore}
                 className="gap-2 text-xs"
               >
@@ -786,6 +796,7 @@ const NovelCard = memo(function NovelCard({
   onDuplicate,
   isPinned,
   onTogglePin,
+  duplicatingId,
 }: {
   novel: NovelData;
   onClick: (novel: NovelData) => void;
@@ -796,11 +807,34 @@ const NovelCard = memo(function NovelCard({
   onDuplicate: (novel: NovelData) => void;
   isPinned: boolean;
   onTogglePin: (id: string) => void;
+  duplicatingId?: string | null;
 }) {
   const progress = Math.round((novel.currentStep / TOTAL_STEPS) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
   const genreColor = genreColors[novel.genre] || genreColors['未分类'];
   const [exporting, setExporting] = React.useState<string | null>(null);
+
+  // Compute total word count from chapters
+  const totalWords = React.useMemo(() => {
+    if (!novel.chapters || novel.chapters.length === 0) return 0;
+    return novel.chapters.reduce((s, c) => s + (c.wordCount || 0), 0);
+  }, [novel.chapters]);
+
+  // Determine highest milestone achieved
+  const achievedMilestone = React.useMemo(() => {
+    if (totalWords === 0) return null;
+    for (let i = milestones.length - 1; i >= 0; i--) {
+      if (totalWords >= milestones[i].threshold) return milestones[i];
+    }
+    return null;
+  }, [totalWords]);
+
+  // Chapter count display
+  const chapterCount = novel._count?.chapters || novel.chapters?.length || 0;
+  const targetChapters = Math.ceil(novel.targetWords / 3000); // ~3000 words per chapter estimate
+  const chapterDisplay = chapterCount > 0
+    ? `${chapterCount}${targetChapters > 0 ? `/${targetChapters}` : ''} 章${totalWords > 0 ? ` · ${totalWords.toLocaleString()} 字` : ''}`
+    : '0 章';
 
   const handleExportTxt = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -874,19 +908,43 @@ const NovelCard = memo(function NovelCard({
     <ContextMenu>
     <ContextMenuTrigger asChild>
     <Card
-      className="group cursor-pointer py-4 transition-all duration-300 hover:shadow-lg hover:shadow-black/5 hover:shadow-amber-500/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60 hover:border-amber-500/20 dark:hover:border-amber-500/20 card-spotlight"
+      className="group cursor-pointer py-4 transition-all duration-300 hover:shadow-lg hover:shadow-black/5 hover:shadow-amber-500/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60 hover:border-amber-500/20 dark:hover:border-amber-500/20 card-spotlight relative overflow-hidden"
       onClick={() => onClick(novel)}
       onMouseMove={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
         e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
       }}
+      role="button"
+      tabIndex={0}
+      aria-label={`打开小说: ${novel.title}`}
     >
+      {/* Duplicating overlay */}
+      {duplicatingId === novel.id && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-xl">
+          <Loader2 className="size-6 animate-spin text-amber-500" />
+        </div>
+      )}
+      {/* Status indicator dot - top left */}
+      <div className={`absolute top-3 left-3 h-2 w-2 rounded-full ${status.dotColor} z-10`} title={status.label} />
+
+      {/* Word count milestone badge - top right */}
+      {achievedMilestone && (
+        <div className="absolute top-3 right-3 z-10" title={`已达成 ${achievedMilestone.label} 字里程碑`} onClick={(e) => e.stopPropagation()}>
+          <div className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/50 dark:to-orange-900/50 border border-amber-300/60 dark:border-amber-700/40 px-2 py-0.5 shadow-sm">
+            <achievedMilestone.icon className="size-3 text-amber-600 dark:text-amber-400" />
+            <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">{achievedMilestone.label}</span>
+          </div>
+        </div>
+      )}
       <CardHeader className="px-5 pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base font-semibold leading-snug line-clamp-1 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-            {novel.title}
-          </CardTitle>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${getAvatarColor(novel.title)} text-white font-bold text-sm`}>{getAvatarInitial(novel.title)}</div>
+            <CardTitle className="text-base font-semibold leading-snug line-clamp-1 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+              {novel.title}
+            </CardTitle>
+          </div>
           <div className="flex items-center gap-1 shrink-0">
             {isPinned && <Pin className="size-3.5 text-amber-500 fill-amber-500" />}
             <Badge className={`text-[10px] px-1.5 py-0.5 bg-gradient-to-r text-white ${genreColor} border-0`}>
@@ -932,13 +990,8 @@ const NovelCard = memo(function NovelCard({
           </span>
           <span className="flex items-center gap-1">
             <FileText className="size-3" />
-            {novel._count?.chapters || 0} 章
+            {chapterDisplay}
           </span>
-          {novel.chapters && novel.chapters.length > 0 && (
-            <span className="text-[10px] text-muted-foreground/60">
-              · {Math.round(novel.chapters.reduce((s, c) => s + (c.wordCount || 0), 0)).toLocaleString()}字
-            </span>
-          )}
         </div>
       </CardContent>
 
@@ -960,7 +1013,7 @@ const NovelCard = memo(function NovelCard({
                 className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
                 onClick={(e) => e.stopPropagation()}
                 disabled={!!exporting}
-                aria-label="导出"
+                aria-label="导出菜单"
               >
                 {exporting ? (
                   <Loader2 className="size-3.5 animate-spin" />

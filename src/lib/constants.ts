@@ -4,6 +4,48 @@ export const STYLES = ['爽文', '虐文', '甜宠', '搞笑', '正剧', '严肃
 
 export const TOTAL_STEPS = 12;
 
+/** Deterministic avatar color based on title string hash */
+const AVATAR_COLORS = [
+  'bg-amber-500',
+  'bg-blue-500',
+  'bg-emerald-500',
+  'bg-purple-500',
+  'bg-rose-500',
+  'bg-teal-500',
+  'bg-indigo-500',
+  'bg-orange-500',
+  'bg-cyan-500',
+  'bg-pink-500',
+];
+
+const AVATAR_COLORS_DARK = [
+  'bg-amber-600',
+  'bg-blue-600',
+  'bg-emerald-600',
+  'bg-purple-600',
+  'bg-rose-600',
+  'bg-teal-600',
+  'bg-indigo-600',
+  'bg-orange-600',
+  'bg-cyan-600',
+  'bg-pink-600',
+];
+
+export function getAvatarColor(title: string): string {
+  if (!title) return AVATAR_COLORS[0];
+  // Simple hash: sum of char codes
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) {
+    hash = (hash * 31 + title.charCodeAt(i)) | 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+export function getAvatarInitial(title: string): string {
+  if (!title) return '?';
+  return title.charAt(0);
+}
+
 export const genreColors: Record<string, string> = {
   '都市脑洞': 'from-blue-500 to-cyan-500',
   '修仙玄幻': 'from-purple-500 to-violet-500',

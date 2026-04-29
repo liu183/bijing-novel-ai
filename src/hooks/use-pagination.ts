@@ -16,11 +16,9 @@ export function usePaginatedList<T>(items: T[], pageSize: number = 6) {
 
   const hasMore = items.length > displayCount;
 
-  const loadMore = useCallback(async () => {
+  const loadMore = useCallback(() => {
     if (loadingMore) return;
     setLoadingMore(true);
-    // Small artificial delay for UX feedback
-    await new Promise((r) => setTimeout(r, 300));
     setDisplayCount((prev) => prev + pageSize);
     setLoadingMore(false);
   }, [loadingMore, pageSize]);

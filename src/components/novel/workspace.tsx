@@ -162,6 +162,8 @@ export function WorkspaceView() {
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [switchStepDialogOpen, setSwitchStepDialogOpen] = useState(false);
   const [pendingStep, setPendingStep] = useState<number | null>(null);
+  const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
+  const [isLoadingNovel, setIsLoadingNovel] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,6 +185,7 @@ export function WorkspaceView() {
   useEffect(() => {
     if (!currentNovel) return;
     const fetchNovelData = async () => {
+      setIsLoadingNovel(true);
       try {
         const res = await fetch(`/api/novels/${currentNovel.id}`);
         if (res.ok) {
@@ -201,10 +204,12 @@ export function WorkspaceView() {
         }
       } catch (error) {
         console.error('Failed to fetch novel data:', error);
+      } finally {
+        setIsLoadingNovel(false);
       }
     };
     fetchNovelData();
-  }, [currentNovel?.id, setCurrentNovel, setChatMessages, setCurrentStep]);
+  }, [currentNovel?.id, setCurrentNovel, setChatMessages]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -483,9 +488,14 @@ export function WorkspaceView() {
     }
   }, [chatInput, currentNovel, selectedModel, addChatMessage]);
 
-  // Clear chat messages
+  // Clear chat messages (shows confirmation dialog first)
   const clearChatMessages = useCallback(() => {
+    setClearChatDialogOpen(true);
+  }, []);
+
+  const confirmClearChat = useCallback(() => {
     setChatMessages([]);
+    setClearChatDialogOpen(false);
     toast.success('对话已清空');
   }, [setChatMessages]);
 
@@ -659,6 +669,20 @@ export function WorkspaceView() {
             <ArrowLeft className="size-4" />
             返回仪表盘
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state when switching novels
+  if (isLoadingNovel) {
+    return (
+      <div className="flex flex-1 flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="size-8 animate-spin text-amber-500" />
+            <p className="text-sm text-muted-foreground">加载中...</p>
+          </div>
         </div>
       </div>
     );
@@ -977,6 +1001,22 @@ export function WorkspaceView() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Clear Chat Confirmation Dialog */}
+      <AlertDialog open={clearChatDialogOpen} onOpenChange={setClearChatDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要清空对话记录吗？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作不可恢复。所有对话记录将被永久删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearChat}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Switch Step with Unsaved Changes Confirmation Dialog */}
       <AlertDialog open={switchStepDialogOpen} onOpenChange={setSwitchStepDialogOpen}>
         <AlertDialogContent>
@@ -1125,6 +1165,7 @@ function StepSidebar({
                               ? 'border-l-2 border-transparent -ml-[2px] pl-[calc(0.625rem+2px)] step-locked-dimmed'
                               : 'hover:bg-muted/50 border-l-2 border-transparent -ml-[2px] pl-[calc(0.625rem+2px)]'
                           }`}
+                          aria-label={`步骤 ${stepNum}: ${config.title}`}
                         >
                           <Icon className={`size-4 shrink-0 ${isActive ? colors.text : isLocked ? 'text-muted-foreground/40' : 'text-muted-foreground/60 group-hover:text-muted-foreground'} ${isCompleted ? 'step-completed-check' : ''}`} />
                           <div className="flex-1 min-w-0">
@@ -1683,6 +1724,7 @@ function ChatPanel({
             onClick={onSendChat}
             disabled={!chatInput.trim() || isChatLoading}
             className="shrink-0 h-9 w-9 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700"
+            aria-label="发送消息"
           >
             <Send className="size-4" />
           </Button>
