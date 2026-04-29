@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAppStore, type StepData } from '@/store/app-store';
-import { STEPS, PHASES, getStepConfig, getPhaseForStep } from '@/lib/steps-config';
+import { STEPS, PHASES, getStepConfig, getPhaseForStep, iconMap, isAllStepsCompleted } from '@/lib/steps-config';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,18 +23,6 @@ import {
   ResizableHandle,
 } from '@/components/ui/resizable';
 import {
-  Lightbulb,
-  FileText,
-  Users,
-  Compass,
-  GitBranch,
-  List,
-  Film,
-  MessageCircle,
-  Layers,
-  Activity,
-  Flag,
-  RefreshCcw,
   ArrowLeft,
   Pencil,
   Save,
@@ -74,7 +62,6 @@ import {
 } from '@/components/ui/popover';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
-// notify migrated to sonner toast
 import { motion, AnimatePresence } from 'framer-motion';
 import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
 import { WritingGoalWidget } from '@/components/novel/writing-goal-widget';
@@ -86,22 +73,6 @@ import { fireConfetti } from '@/lib/confetti';
 function sanitizeExcerpt(html: string): string {
   return html.replace(/<(?!\/?mark)[^>]*>/gi, '');
 }
-
-// Icon mapping
-const iconMap: Record<string, React.ElementType> = {
-  Lightbulb,
-  FileText,
-  Users,
-  Compass,
-  GitBranch,
-  List,
-  Film,
-  MessageCircle,
-  Layers,
-  Activity,
-  Flag,
-  RefreshCcw,
-};
 
 // Phase color mapping for text/borders
 const phaseColorMap: Record<string, { text: string; bg: string; border: string; badge: string }> = {
@@ -354,11 +325,7 @@ export function WorkspaceView() {
         );
         if (currentNovel) {
           setCurrentNovel({ ...currentNovel, steps: updatedSteps });
-          // Check if all steps are completed/locked → celebration!
-          const allCompleted = updatedSteps.filter(
-            (s) => s.status === 'completed' || s.status === 'locked'
-          ).length;
-          if (allCompleted >= STEPS.length) {
+          if (isAllStepsCompleted(updatedSteps)) {
             setTimeout(fireConfetti, 300);
           }
         }
@@ -1077,7 +1044,7 @@ function StepSidebar({
       return <Lock className="size-3.5 text-amber-500" />;
     }
     if (status === 'completed') {
-      return <CheckCircle2 className="size-3.5 text-emerald-500" />;
+      return <CheckCircle2 className="size-3.5 text-emerald-500 step-completed-check" />;
     }
     return <Circle className="size-3.5 text-muted-foreground/40" />;
   };
@@ -1137,6 +1104,9 @@ function StepSidebar({
                   const config = getStepConfig(stepNum);
                   const data = getStepData(stepNum);
                   const isActive = currentStep === stepNum;
+                  const isLocked = data?.status === 'locked';
+                  const isCompleted = data?.status === 'completed';
+                  const isPending = !data || (!isCompleted && !isLocked && data.status !== 'generating');
                   const Icon = iconMap[config.icon] || Lightbulb;
 
                   return (
@@ -1146,17 +1116,19 @@ function StepSidebar({
                           onClick={() => onStepClick(stepNum)}
                           className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150 group ${
                             isActive
-                              ? `${colors.bg} border-l-2 ${colors.border} -ml-[2px] pl-[calc(0.625rem+2px)]`
+                              ? `${colors.bg} border-l-2 ${colors.border} -ml-[2px] pl-[calc(0.625rem+2px)] animate-pulse-ring`
+                              : isLocked
+                              ? 'border-l-2 border-transparent -ml-[2px] pl-[calc(0.625rem+2px)] step-locked-dimmed'
                               : 'hover:bg-muted/50 border-l-2 border-transparent -ml-[2px] pl-[calc(0.625rem+2px)]'
                           }`}
                         >
-                          <Icon className={`size-4 shrink-0 ${isActive ? colors.text : 'text-muted-foreground/60 group-hover:text-muted-foreground'}`} />
+                          <Icon className={`size-4 shrink-0 ${isActive ? colors.text : isLocked ? 'text-muted-foreground/40' : 'text-muted-foreground/60 group-hover:text-muted-foreground'} ${isCompleted ? 'step-completed-check' : ''}`} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] text-muted-foreground/60 font-mono">
                                 {String(stepNum).padStart(2, '0')}
                               </span>
-                              <span className={`text-xs font-medium truncate ${isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                              <span className={`text-xs font-medium truncate ${isActive ? 'text-foreground' : isLocked ? 'text-muted-foreground/50' : 'text-muted-foreground group-hover:text-foreground'}`}>
                                 {config.title}
                               </span>
                             </div>

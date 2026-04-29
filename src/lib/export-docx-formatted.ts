@@ -12,13 +12,9 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 import type { NovelData } from '@/store/app-store';
+import type { NovelExportData } from '@/lib/export-types';
 
-interface ExportData {
-  steps: { stepNumber: number; title: string; content: string }[];
-  chapters: { number: number; title: string; content: string }[];
-}
-
-export async function exportNovelToDocxFormatted(data: ExportData, novel: NovelData) {
+export async function exportNovelToDocxFormatted(data: NovelExportData, novel: NovelData) {
   const children: Paragraph[] = [];
 
   // Title page

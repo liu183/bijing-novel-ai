@@ -2,7 +2,9 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '@/store/app-store';
-import { getStepConfig, type InputField } from '@/lib/steps-config';
+import { getStepConfig, type InputField, isAllStepsCompleted } from '@/lib/steps-config';
+import { TOTAL_STEPS } from '@/lib/constants';
+import { formatTime } from '@/lib/format';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +27,6 @@ import {
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { fireConfetti } from '@/lib/confetti';
-import { TOTAL_STEPS } from '@/lib/constants';
 
 export function GenerateStepDialog() {
   const open = useAppStore((s) => s.generateDialogOpen);
@@ -109,11 +110,8 @@ export function GenerateStepDialog() {
     setInputs((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`;
-  };
+  // Format time — imported from @/lib/format
+
 
   const handleSubmit = async () => {
     if (!currentNovel) return;
@@ -156,10 +154,7 @@ export function GenerateStepDialog() {
         setCurrentStep(stepNumber);
 
         // Check if all steps are completed/locked → milestone celebration!
-        const completedSteps = (updatedNovel.steps || []).filter(
-          (s: { status: string }) => s.status === 'completed' || s.status === 'locked'
-        ).length;
-        if (completedSteps >= TOTAL_STEPS) {
+        if (isAllStepsCompleted(updatedNovel.steps || [])) {
           setTimeout(fireConfetti, 300);
         }
       }

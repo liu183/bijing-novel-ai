@@ -197,7 +197,7 @@ export function StatsChart({ novels }: StatsChartProps) {
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Chart 1: Steps Progress */}
-            <div className="rounded-xl border border-border/60 bg-card p-5">
+            <div className="rounded-xl border border-border/60 bg-card p-5 chart-container">
               <h3 className="text-sm font-semibold mb-4 flex items-center gap-1.5">
                 <span className="size-2 rounded-full bg-amber-500" />
                 各项目创作进度
@@ -247,7 +247,7 @@ export function StatsChart({ novels }: StatsChartProps) {
             </div>
 
             {/* Chart 2: Word Count Overview */}
-            <div className="rounded-xl border border-border/60 bg-card p-5">
+            <div className="rounded-xl border border-border/60 bg-card p-5 chart-container">
               <h3 className="text-sm font-semibold mb-4 flex items-center gap-1.5">
                 <span className="size-2 rounded-full bg-emerald-500" />
                 目标字数概览

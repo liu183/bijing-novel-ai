@@ -33,6 +33,8 @@ interface ChapterData {
   content: string;
   wordCount: number;
   status: 'draft' | 'writing' | 'completed';
+  createdAt: string;
+  updatedAt?: string;
 }
 
 interface MessageData {
@@ -43,11 +45,11 @@ interface MessageData {
   createdAt?: string;
 }
 
-interface NovelData {
+export interface NovelData {
   id: string;
   title: string;
   genre: string;
-  subgenre: string;
+  subgenre: string; // reserved for future use
   style: string;
   targetWords: number;
   description: string;
@@ -95,11 +97,7 @@ interface AppState {
   setChatMessages: (messages: MessageData[]) => void;
   addChatMessage: (message: MessageData) => void;
 
-  // Sidebar
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-
-  // Create novel dialog
+  // Agent system
   createDialogOpen: boolean;
   setCreateDialogOpen: (open: boolean) => void;
   selectedTemplate: string | null;
@@ -125,7 +123,6 @@ interface AppState {
   agentActivities: AgentActivityData[];
   addAgentActivity: (activity: AgentActivityData) => void;
   setAgentActivities: (activities: AgentActivityData[]) => void;
-  clearAgentActivities: () => void;
   agentStatus: Record<string, 'idle' | 'thinking' | 'working' | 'done'>;
   setAgentStatus: (agentId: string, status: 'idle' | 'thinking' | 'working' | 'done') => void;
 
@@ -182,11 +179,7 @@ export const useAppStore = create<AppState>()(
       addChatMessage: (message) =>
         set((state) => ({ chatMessages: [...state.chatMessages, message] })),
 
-      // Sidebar
-      sidebarOpen: true,
-      setSidebarOpen: (open) => set({ sidebarOpen: open }),
-
-      // Create novel dialog
+      // Agent system
       createDialogOpen: false,
       setCreateDialogOpen: (open) => set({ createDialogOpen: open }),
       selectedTemplate: null,
@@ -213,7 +206,6 @@ export const useAppStore = create<AppState>()(
       addAgentActivity: (activity) =>
         set((state) => ({ agentActivities: [...state.agentActivities, activity] })),
       setAgentActivities: (activities) => set({ agentActivities: activities }),
-      clearAgentActivities: () => set({ agentActivities: [] }),
       agentStatus: {},
       setAgentStatus: (agentId, status) =>
         set((state) => ({

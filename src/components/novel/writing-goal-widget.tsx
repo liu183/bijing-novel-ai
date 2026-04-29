@@ -17,7 +17,10 @@ export function WritingGoalWidget() {
   const todayWords = useMemo(() => {
     if (!currentNovel?.chapters) return 0;
     return currentNovel.chapters
-      .filter(ch => new Date(ch.createdAt).toDateString() === today)
+      .filter(ch => {
+        const chapterDate = new Date(Math.max(ch.createdAt, ch.updatedAt || ch.createdAt)).toDateString();
+        return chapterDate === today;
+      })
       .reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
   }, [currentNovel?.chapters, today]);
 

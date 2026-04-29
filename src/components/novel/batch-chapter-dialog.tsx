@@ -19,6 +19,7 @@ import { BookOpen, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-re
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fireConfetti } from '@/lib/confetti';
+import { formatWordCount, formatTime } from '@/lib/format';
 
 // ─── Types ───
 interface BatchChapterResult {
@@ -62,19 +63,6 @@ export function BatchChapterDialog({ open, onOpenChange }: BatchChapterDialogPro
   const totalChapters = Math.max(0, endChapter - startChapter + 1);
   const estimatedMinWords = totalChapters * WORDS_PER_CHAPTER_MIN;
   const estimatedMaxWords = totalChapters * WORDS_PER_CHAPTER_MAX;
-
-  const formatWordCount = (count: number) => {
-    if (count >= 10000) {
-      return `${(count / 10000).toFixed(1)}万字`;
-    }
-    return `${count.toLocaleString()}字`;
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`;
-  };
 
   // Validation
   const validationError = (() => {
@@ -129,14 +117,6 @@ export function BatchChapterDialog({ open, onOpenChange }: BatchChapterDialogPro
     const total = endChapter - startChapter + 1;
 
     try {
-      // Simulate progress messages for each chapter
-      const progressInterval = setInterval(() => {
-        setCurrentProgress((prev) => {
-          // Just keep the last progress message
-          return prev; // will be set by the loop below
-        });
-      }, 2000);
-
       // Call the batch API
       const res = await fetch(`/api/novels/${currentNovel.id}/chapters-batch`, {
         method: 'POST',
@@ -147,8 +127,6 @@ export function BatchChapterDialog({ open, onOpenChange }: BatchChapterDialogPro
           model: selectedModel,
         }),
       });
-
-      clearInterval(progressInterval);
 
       const data: BatchResponse = await res.json();
 

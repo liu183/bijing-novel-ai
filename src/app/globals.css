@@ -266,7 +266,7 @@
 
 /* Slide in from right */
 .animate-slide-in-right {
-  animation: slideInRight 0.3s ease forwards;
+  animation: slide-in-right 0.3s ease forwards;
 }
 
 /* Number counter glow */
@@ -316,7 +316,12 @@
   .animate-count-up,
   .animate-pulse-ring,
   .animate-pulse-ring-box,
-  .animate-slide-in-right {
+  .animate-slide-in-right,
+  .hero-gradient-bg,
+  .floating-particles::before,
+  .floating-particles::after,
+  .progress-bar-shimmer::after,
+  .card-spotlight::before {
     animation: none !important;
   }
   .stagger-children > * {
@@ -404,6 +409,139 @@ main {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ========== NEW: Hero gradient morph background ========== */
+@keyframes hero-gradient-morph {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.hero-gradient-bg {
+  background: linear-gradient(-45deg, rgba(245,158,11,0.08), rgba(139,92,246,0.06), rgba(6,182,212,0.05), rgba(245,158,11,0.08));
+  background-size: 400% 400%;
+  animation: hero-gradient-morph 15s ease infinite;
+}
+
+/* ========== NEW: Floating particles for hero section ========== */
+.floating-particles {
+  position: relative;
+  overflow: hidden;
+}
+.floating-particles::before,
+.floating-particles::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%);
+  animation: float-particle 8s ease-in-out infinite;
+  pointer-events: none;
+}
+.floating-particles::before {
+  width: 200px;
+  height: 200px;
+  top: -50px;
+  right: 10%;
+  animation-delay: 0s;
+}
+.floating-particles::after {
+  width: 150px;
+  height: 150px;
+  bottom: -30px;
+  left: 5%;
+  animation-delay: -4s;
+}
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.5; }
+  50% { transform: translateY(-30px) scale(1.1); opacity: 0.8; }
+}
+
+/* ========== NEW: Card spotlight (mouse-tracking glow) ========== */
+.card-spotlight {
+  position: relative;
+  overflow: hidden;
+}
+.card-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(245,158,11,0.06), transparent 40%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  z-index: 1;
+}
+.card-spotlight:hover::before {
+  opacity: 1;
+}
+
+/* ========== NEW: Progress bar shimmer effect ========== */
+.progress-bar-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: progress-shimmer 2s ease-in-out infinite;
+}
+@keyframes progress-shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ========== NEW: View transition fallback ========== */
+.view-transition {
+  animation: view-fade-in 0.2s ease-out;
+}
+@keyframes view-fade-in {
+  from { opacity: 0.8; transform: scale(0.995); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ========== NEW: Toast notification enhancement ========== */
+[data-sonner-toaster] [data-sonner-toast] {
+  border-radius: 12px;
+  border: 1px solid rgba(245,158,11,0.15);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+
+/* ========== NEW: Chart container gradient border ========== */
+.chart-container {
+  position: relative;
+  border-radius: 16px;
+  background: linear-gradient(var(--background), var(--background)) padding-box,
+              linear-gradient(135deg, rgba(245,158,11,0.2), rgba(139,92,246,0.15), rgba(6,182,212,0.1)) border-box;
+  border: 1px solid transparent;
+}
+
+/* ========== NEW: Step indicator animations ========== */
+.step-completed-check {
+  animation: step-check-pop 0.3s ease-out;
+}
+@keyframes step-check-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.step-locked-dimmed {
+  opacity: 0.45;
+  filter: grayscale(0.3);
+}
+
+/* ========== NEW: Dark mode improvements ========== */
+.dark .card-spotlight:hover {
+  border-color: rgba(245,158,11,0.2);
+}
+.dark .hero-gradient-bg {
+  background: linear-gradient(-45deg, rgba(245,158,11,0.05), rgba(139,92,246,0.04), rgba(6,182,212,0.03), rgba(245,158,11,0.05));
+  background-size: 400% 400%;
+  animation: hero-gradient-morph 15s ease infinite;
 }
 
 @media print {

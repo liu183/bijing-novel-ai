@@ -69,7 +69,7 @@ import {
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { streamSSE } from '@/lib/sse-parser';
-// notify migrated to sonner toast
+import { formatWordCount } from '@/lib/format';
 
 // ─── Reader Preferences ───
 interface ReaderPrefs {
@@ -154,6 +154,9 @@ export function ReaderView() {
   const [isEditingContent, setIsEditingContent] = useState(false);
   const [editContentValue, setEditContentValue] = useState('');
   const [isSavingContent, setIsSavingContent] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [streamMode, setStreamMode] = useState(false);
   const [streamContent, setStreamContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -161,6 +164,7 @@ export function ReaderView() {
   const streamEndRef = useRef<HTMLDivElement>(null);
   const [tocOpen, setTocOpen] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isTouching, setIsTouching] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
   const [readChapters, setReadChapters] = useState<Set<number>>(() => {
     if (typeof window === 'undefined') return new Set();
@@ -436,6 +440,7 @@ export function ReaderView() {
   // Mark all chapters as read
   const handleMarkAllRead = useCallback(() => {
     if (!currentNovel?.id) return;
+    if (chapters.length === 0) return;
     const allNums = chapters.map(c => c.number);
     setReadChapters(new Set(allNums));
     try {
@@ -448,9 +453,11 @@ export function ReaderView() {
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (isEditingContent) return;
     touchStartXRef.current = e.touches[0].clientX;
+    setIsTouching(true);
   }, [isEditingContent]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    setIsTouching(false);
     if (touchStartXRef.current === null || isEditingContent) {
       touchStartXRef.current = null;
       setSwipeOffset(0);
@@ -467,14 +474,15 @@ export function ReaderView() {
         toast.info('下一章');
       }
     }
+    // Transition back will be handled by CSS transition
     setSwipeOffset(0);
   }, [isEditingContent, isFirstChapter, isLastChapter, goToPrevChapter, goToNextChapter]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (touchStartXRef.current === null || isEditingContent) return;
     const diff = e.touches[0].clientX - touchStartXRef.current;
-    // Clamp the visual offset to ±60px
-    setSwipeOffset(Math.max(-60, Math.min(60, diff)));
+    // Allow wider swipe range for visual feedback (up to ±150px)
+    setSwipeOffset(Math.max(-150, Math.min(150, diff)));
   }, [isEditingContent]);
 
   // Save chapter title
@@ -538,11 +546,71 @@ export function ReaderView() {
     }
   };
 
+  // Auto-save with debounce (3 seconds)
+  const doAutoSave = useCallback(async () => {
+    if (!currentNovel || !currentChapter || !isDirty) return;
+    setIsAutoSaving(true);
+    try {
+      const res = await fetch(`/api/novels/${currentNovel.id}/chapters`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapterNumber: currentChapter.number,
+          title: currentChapter.title,
+          content: editContentValue,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        const updatedChapters = currentNovel.chapters?.map((ch) =>
+          ch.number === currentChapter.number
+            ? { ...ch, content: updated.content, wordCount: updated.wordCount }
+            : ch
+        );
+        setCurrentNovel({ ...currentNovel, chapters: updatedChapters });
+        setContentKey((k) => k + 1);
+        setIsDirty(false);
+        toast.success('已自动保存');
+      }
+    } catch {
+      // silently fail, user can still manually save
+    } finally {
+      setIsAutoSaving(false);
+    }
+  }, [currentNovel, currentChapter, editContentValue, isDirty, setCurrentNovel]);
+
+  // Debounce effect: trigger auto-save 3s after content changes
+  useEffect(() => {
+    if (!isEditingContent || !isDirty) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      doAutoSave();
+    }, 3000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [editContentValue, isEditingContent, isDirty, doAutoSave]);
+
+  // Cleanup auto-save timer on unmount or mode change
+  useEffect(() => {
+    if (!isEditingContent && autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+  }, [isEditingContent]);
+
+  // Track content changes for dirty state
+  const handleEditContentChange = useCallback((value: string) => {
+    setEditContentValue(value);
+    setIsDirty(true);
+  }, []);
+
   // Enter content edit mode
   const handleEnterContentEdit = () => {
     if (!currentChapter) return;
     setEditContentValue(currentChapter.content || '');
     setIsEditingContent(true);
+    setIsDirty(false);
   };
 
   // Delete chapter
@@ -592,13 +660,7 @@ export function ReaderView() {
     return () => window.removeEventListener('keydown', handler);
   }, [goToPrevChapter, goToNextChapter]);
 
-  // Format word count
-  const formatWordCount = (count: number) => {
-    if (count >= 10000) {
-      return `${(count / 10000).toFixed(1)}万字`;
-    }
-    return `${count.toLocaleString()}字`;
-  };
+  // Format word count — imported from @/lib/format
 
   // Split content into paragraphs
   const renderContent = (content: string) => {
@@ -1081,8 +1143,12 @@ export function ReaderView() {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchMove={handleTouchMove}
-          className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)] transition-transform duration-100 ease-out smooth-scroll"
-          style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
+          className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)] smooth-scroll"
+          style={{
+            transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined,
+            opacity: swipeOffset ? Math.max(0.3, 1 - Math.abs(swipeOffset) / 300) : undefined,
+            transition: isTouching ? 'none' : 'transform 0.3s ease, opacity 0.3s ease',
+          }}
         >
           {chapterLoading ? (
             <div className="space-y-4 py-8 animate-pulse">
@@ -1190,7 +1256,7 @@ export function ReaderView() {
                 >
                   <textarea
                     value={editContentValue}
-                    onChange={(e) => setEditContentValue(e.target.value)}
+                    onChange={(e) => handleEditContentChange(e.target.value)}
                     className="w-full min-h-[60vh] p-6 text-base leading-relaxed resize-y rounded-lg border border-input bg-background font-serif"
                     autoFocus
                     onKeyDown={(e) => {
@@ -1202,6 +1268,11 @@ export function ReaderView() {
                       {editContentValue.replace(/\s/g, '').length} 字
                     </span>
                     <div className="flex items-center gap-2">
+                      {isAutoSaving && (
+                        <span className="text-[11px] text-amber-600 dark:text-amber-400 animate-pulse">
+                          保存中...
+                        </span>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1214,11 +1285,19 @@ export function ReaderView() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleSaveContent}
-                        disabled={isSavingContent}
+                        onClick={async () => {
+                          // Cancel any pending auto-save
+                          if (autoSaveTimerRef.current) {
+                            clearTimeout(autoSaveTimerRef.current);
+                            autoSaveTimerRef.current = null;
+                          }
+                          await handleSaveContent();
+                          setIsDirty(false);
+                        }}
+                        disabled={isSavingContent || isAutoSaving}
                         className="gap-1.5 text-xs border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
                       >
-                        {isSavingContent ? (
+                        {isSavingContent || isAutoSaving ? (
                           <Loader2 className="size-3.5 animate-spin" />
                         ) : (
                           <Check className="size-3.5" />

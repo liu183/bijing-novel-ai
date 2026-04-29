@@ -20,6 +20,7 @@ import {
   Settings2,
   ChevronUp,
   X,
+  Clock,
   LucideIcon,
 } from 'lucide-react';
 import type { ModelInfo } from '@/lib/ai/models';
@@ -64,6 +65,30 @@ const providerColors: Record<string, string> = {
   '智谱GLM': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
 };
 
+// ─── Recently Used Models ───
+const RECENTLY_USED_KEY = 'recently-used-models';
+const MAX_RECENT_MODELS = 5;
+
+function getRecentlyUsedModels(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(RECENTLY_USED_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecentlyUsedModel(modelId: string) {
+  try {
+    const recent = getRecentlyUsedModels().filter((id) => id !== modelId);
+    recent.unshift(modelId);
+    localStorage.setItem(RECENTLY_USED_KEY, JSON.stringify(recent.slice(0, MAX_RECENT_MODELS)));
+  } catch {
+    // ignore
+  }
+}
+
 export function ModelSelector() {
   const selectedModel = useAppStore((s) => s.selectedModel);
   const setSelectedModel = useAppStore((s) => s.setSelectedModel);
@@ -72,6 +97,7 @@ export function ModelSelector() {
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [recentModelIds, setRecentModelIds] = useState<string[]>(() => getRecentlyUsedModels());
 
   const currentModelInfo = getModelInfo(selectedModel || DEFAULT_MODEL_ID);
 
@@ -118,10 +144,28 @@ export function ModelSelector() {
     }
   }, [open]);
 
+  // Recently used models (resolved to ModelInfo, filtered by search)
+  const recentModels = useMemo(() => {
+    return recentModelIds
+      .map((id) => ALL_MODELS.find((m) => m.id === id))
+      .filter((m): m is ModelInfo => !!m)
+      .filter((m) => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return (
+          m.name.toLowerCase().includes(q) ||
+          m.id.toLowerCase().includes(q) ||
+          m.provider.toLowerCase().includes(q)
+        );
+      });
+  }, [recentModelIds, search]);
+
   const handleSelect = (model: ModelInfo) => {
     setSelectedModel(model.id);
     setOpen(false);
     setSearch('');
+    addRecentlyUsedModel(model.id);
+    setRecentModelIds(getRecentlyUsedModels());
   };
 
   return (
@@ -231,6 +275,69 @@ export function ModelSelector() {
           {/* Model List */}
           <ScrollArea className="max-h-[360px]">
             <div className="py-2">
+              {/* Recently Used Section */}
+              {recentModels.length > 0 && !search && (
+                <div className="mb-1">
+                  <div className="flex items-center gap-2 px-4 py-1.5">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-muted/50">
+                      <Clock className="size-3 text-muted-foreground" />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      最近使用
+                    </span>
+                    <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
+                      {recentModels.length}
+                    </Badge>
+                  </div>
+                  {recentModels.map((model) => {
+                    const isSelected = selectedModel === model.id;
+                    const config = categoryConfig[model.category];
+                    return (
+                      <button
+                        key={`recent-${model.id}`}
+                        onClick={() => handleSelect(model)}
+                        className={`w-full flex items-start gap-3 px-4 py-2.5 text-left transition-all duration-100 group ${
+                          isSelected
+                            ? 'bg-amber-50 dark:bg-amber-950/20'
+                            : 'hover:bg-muted/40'
+                        }`}
+                      >
+                        <div className="mt-0.5 flex-shrink-0">
+                          {isSelected ? (
+                            <CheckCircle2 className="size-4 text-amber-500" />
+                          ) : (
+                            <div className="size-4 rounded-full border-2 border-muted-foreground/20 group-hover:border-muted-foreground/40 transition-colors" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`text-sm font-medium ${
+                                isSelected ? 'text-amber-700 dark:text-amber-400' : ''
+                              }`}
+                            >
+                              {model.name}
+                            </span>
+                            <Badge
+                              variant="secondary"
+                              className={`text-[9px] px-1 py-0 h-4 ${
+                                providerColors[model.provider] || ''
+                              }`}
+                            >
+                              {model.provider}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                            {config?.label || model.category}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <Separator className="mt-2" />
+                </div>
+              )}
+
               {filteredModels.length === 0 ? (
                 <div className="flex flex-col items-center py-8 text-center">
                   <Search className="size-8 text-muted-foreground/40 mb-2" />

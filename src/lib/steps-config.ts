@@ -1,4 +1,35 @@
 // 12步小说创作框架配置
+import React from 'react';
+import {
+  Lightbulb,
+  FileText,
+  Users,
+  Compass,
+  GitBranch,
+  List,
+  Film,
+  MessageCircle,
+  Layers,
+  Activity,
+  Flag,
+  RefreshCcw,
+} from 'lucide-react';
+
+/** Map step icon names to their lucide-react icon components */
+export const iconMap: Record<string, React.ElementType> = {
+  Lightbulb,
+  FileText,
+  Users,
+  Compass,
+  GitBranch,
+  List,
+  Film,
+  MessageCircle,
+  Layers,
+  Activity,
+  Flag,
+  RefreshCcw,
+};
 export interface StepConfig {
   number: number;
   key: string;
@@ -310,4 +341,9 @@ export function getStepConfig(stepNumber: number): StepConfig {
 
 export function getPhaseForStep(stepNumber: number) {
   return PHASES.find(p => p.steps.includes(stepNumber));
+}
+
+/** Check if all steps are completed or locked */
+export function isAllStepsCompleted(steps: { status: string }[]): boolean {
+  return steps.filter(s => s.status === 'completed' || s.status === 'locked').length >= STEPS.length;
 }

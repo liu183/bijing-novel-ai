@@ -253,3 +253,53 @@ export function getUserInputPrompt(stepNumber: number, inputs: Record<string, st
 
   return `请根据以下输入进行创作：\n\n${parts.join('\n')}`;
 }
+
+/** Build the system prompt for chapter generation, used by all chapter generation routes. */
+export function buildChapterPrompt(
+  novel: { title: string; genre: string; style: string },
+  completedSteps: { stepNumber: number; content: string }[],
+  existingChapters: { number: number; title: string; content: string | null }[],
+  chapterNumber: number,
+  options?: { isBatch?: boolean },
+): string {
+  const synopsis = completedSteps.find(s => s.stepNumber === 2)?.content || '';
+  const scenes = completedSteps.find(s => s.stepNumber === 6)?.content || '';
+  const setpieces = completedSteps.find(s => s.stepNumber === 7)?.content || '';
+  const dialogue = completedSteps.find(s => s.stepNumber === 8)?.content || '';
+  const pacing = completedSteps.find(s => s.stepNumber === 10)?.content || '';
+
+  // For single-chapter routes: use truncated summaries of last few chapters
+  // For batch routes: also use truncated summaries (matching single approach)
+  const recentChapters = existingChapters
+    .filter(ch => ch.number < chapterNumber)
+    .sort((a, b) => b.number - a.number)
+    .slice(0, 3);
+
+  const chaptersContext = recentChapters.length > 0
+    ? `\n已完成的章节内容摘要（供续写参考）：\n${recentChapters.map((ch) => `第${ch.number}章「${ch.title}」：${ch.content?.slice(0, 300) || '（空）'}...`).join('\n')}`
+    : '';
+
+  const batchNote = options?.isBatch
+    ? `\n- 注意与第${chapterNumber - 1}章的衔接`
+    : `\n- 保持与前文的连贯性`;
+
+  return `你是一位专业的网文作家。请为小说《${novel.title}》（${novel.genre}/${novel.style}）创作第${chapterNumber}章。
+
+## 故事提要
+${synopsis}
+
+${scenes ? `## 场景大纲\n${scenes}` : ''}
+${setpieces ? `## 关键场面\n${setpieces}` : ''}
+${dialogue ? `## 对白参考\n${dialogue}` : ''}
+${pacing ? `## 节奏参考\n${pacing}` : ''}
+${chaptersContext}
+
+## 创作要求
+- 章节字数：3000-5000字
+- 每章结尾设置悬念钩子
+${batchNote}
+- 体现角色个性和关系张力
+- 体现${novel.style}风格特点
+- 直接输出小说正文，不要加任何解释说明
+- 用中文创作`;
+}

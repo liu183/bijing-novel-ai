@@ -11,11 +11,7 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 import type { NovelData } from '@/store/app-store';
-
-interface NovelExportData {
-  steps: { stepNumber: number; title: string; content: string }[];
-  chapters: { number: number; title: string; content: string }[];
-}
+import type { NovelExportData } from '@/lib/export-types';
 
 export async function exportNovelToDocx(
   data: NovelExportData,

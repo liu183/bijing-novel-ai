@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAIService } from '@/lib/ai';
+import { buildChapterPrompt } from '@/lib/ai-prompts';
 
 // Vercel Serverless Function 最大执行时间（秒）
 export const maxDuration = 60;
@@ -42,26 +43,16 @@ export async function POST(
       orderBy: { stepNumber: 'asc' },
     });
 
-    const synopsis = completedSteps.find(s => s.stepNumber === 2)?.content || '';
-    const scenes = completedSteps.find(s => s.stepNumber === 6)?.content || '';
-    const setpieces = completedSteps.find(s => s.stepNumber === 7)?.content || '';
-    const dialogue = completedSteps.find(s => s.stepNumber === 8)?.content || '';
-    const pacing = completedSteps.find(s => s.stepNumber === 10)?.content || '';
-
-    if (!synopsis) {
-      return NextResponse.json({ error: '请先完成Step 2（一页提要）才能生成章节' }, { status: 400 });
-    }
-
-    // Fetch the last 3 completed chapters for continuity context
+    // Fetch existing chapters for continuity context
     const existingChapters = await db.chapter.findMany({
       where: { novelId: id, number: { lt: chapterNumber }, status: 'completed' },
       orderBy: { number: 'desc' },
       take: 3,
     });
 
-    const chaptersContext = existingChapters.length > 0
-      ? `\n已完成的章节内容摘要（供续写参考）：\n${existingChapters.map((ch) => `第${ch.number}章「${ch.title}」：${ch.content?.slice(0, 500) || '（空）'}...`).join('\n')}`
-      : '';
+    if (!completedSteps.find(s => s.stepNumber === 2)?.content) {
+      return NextResponse.json({ error: '请先完成Step 2（一页提要）才能生成章节' }, { status: 400 });
+    }
 
     // Update or create chapter
     await db.chapter.upsert({
@@ -76,25 +67,12 @@ export async function POST(
     });
 
     const ai = await createAIService();
-    const systemPrompt = `你是一位专业的网文作家。请为小说《${novel.title}》（${novel.genre}/${novel.style}）创作第${chapterNumber}章。
-
-## 故事提要
-${synopsis}
-
-${scenes ? `## 场景大纲\n${scenes}` : ''}
-${setpieces ? `## 关键场面\n${setpieces}` : ''}
-${dialogue ? `## 对白参考\n${dialogue}` : ''}
-${pacing ? `## 节奏参考\n${pacing}` : ''}
-${chaptersContext}
-
-## 创作要求
-- 章节字数：3000-5000字
-- 每章结尾设置悬念钩子
-- 体现角色个性和关系张力
-- 保持与前文的连贯性
-- 体现${novel.style}风格特点
-- 直接输出小说正文，不要加任何解释说明
-- 用中文创作`;
+    const systemPrompt = buildChapterPrompt(
+      novel,
+      completedSteps.map(s => ({ stepNumber: s.stepNumber, content: s.content })),
+      existingChapters,
+      chapterNumber,
+    );
 
     const completion = await ai.chat.completions.create({
       messages: [

@@ -172,6 +172,9 @@ export function DashboardView() {
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
+  const [displayCount, setDisplayCount] = useState(6);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 6;
 
   const togglePinnedNovel = useCallback((id: string) => {
     setPinnedNovelIds((prev) => {
@@ -195,6 +198,14 @@ export function DashboardView() {
       setLoading(false);
     }
   }, [setNovels]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    await new Promise((r) => setTimeout(r, 400));
+    setDisplayCount((prev) => prev + PAGE_SIZE);
+    setLoadingMore(false);
+  }, [loadingMore]);
 
   const handleEditNovel = (novel: NovelData) => {
     setEditingNovel(novel);
@@ -308,6 +319,12 @@ export function DashboardView() {
     });
   }, [filteredNovels, pinnedNovelIds]);
 
+  // Paginated display
+  const displayedNovels = useMemo(() => {
+    return sortedNovels.slice(0, displayCount);
+  }, [sortedNovels, displayCount]);
+  const hasMore = sortedNovels.length > displayCount;
+
   // Compute stats
   const totalNovels = novels.length;
   const totalSteps = novels.reduce((sum, n) => sum + (n._count?.steps || 0), 0);
@@ -354,7 +371,7 @@ export function DashboardView() {
   return (
     <div className="flex-1">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-warm-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-stone-950/40">
+      <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-warm-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-stone-950/40 hero-gradient-bg floating-particles">
         {/* Decorative elements */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-amber-200/40 dark:bg-amber-800/20 blur-3xl animate-float-1" />
@@ -520,6 +537,7 @@ export function DashboardView() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setFilterGenre(null)}
+                  aria-label="筛选全部题材"
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
                     !filterGenre
                       ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
@@ -532,6 +550,7 @@ export function DashboardView() {
                   <button
                     key={genre}
                     onClick={() => setFilterGenre(filterGenre === genre ? null : genre)}
+                    aria-label={`筛选题材: ${genre}`}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
                       filterGenre === genre
                         ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
@@ -631,9 +650,10 @@ export function DashboardView() {
         )}
 
         {/* Novel Cards Grid */}
-        {!loading && sortedNovels.length > 0 && (
+        {!loading && displayedNovels.length > 0 && (
+          <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 stagger-children">
-            {sortedNovels.map((novel) => (
+            {displayedNovels.map((novel) => (
               <NovelCard
                 key={novel.id}
                 novel={novel}
@@ -648,6 +668,28 @@ export function DashboardView() {
               />
             ))}
           </div>
+
+          {/* Count Display + Load More */}
+          <div className="flex flex-col items-center gap-3 mt-6">
+            <p className="text-xs text-muted-foreground">
+              共 {sortedNovels.length} 部小说 · 显示 {displayedNovels.length} 部
+            </p>
+            {hasMore && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="gap-2 text-xs"
+              >
+                {loadingMore ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : null}
+                {loadingMore ? '加载中...' : '加载更多'}
+              </Button>
+            )}
+          </div>
+          </>
         )}
 
         {/* Mobile FAB - always visible on small screens */}
@@ -832,8 +874,13 @@ const NovelCard = memo(function NovelCard({
     <ContextMenu>
     <ContextMenuTrigger asChild>
     <Card
-      className="group cursor-pointer py-4 transition-all duration-300 hover:shadow-lg hover:shadow-black/5 hover:shadow-amber-500/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60 hover:border-amber-500/20 dark:hover:border-amber-500/20"
+      className="group cursor-pointer py-4 transition-all duration-300 hover:shadow-lg hover:shadow-black/5 hover:shadow-amber-500/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60 hover:border-amber-500/20 dark:hover:border-amber-500/20 card-spotlight"
       onClick={() => onClick(novel)}
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+        e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+      }}
     >
       <CardHeader className="px-5 pb-2">
         <div className="flex items-start justify-between gap-2">
@@ -873,7 +920,7 @@ const NovelCard = memo(function NovelCard({
           </div>
           <Progress
             value={progress}
-            className="h-1.5 [&>div]:bg-gradient-to-r [&>div]:from-amber-500 [&>div]:to-orange-500"
+            className="h-1.5 [&>div]:bg-gradient-to-r [&>div]:from-amber-500 [&>div]:to-orange-500 progress-bar-shimmer"
           />
         </div>
 
@@ -913,6 +960,7 @@ const NovelCard = memo(function NovelCard({
                 className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
                 onClick={(e) => e.stopPropagation()}
                 disabled={!!exporting}
+                aria-label="导出"
               >
                 {exporting ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -945,6 +993,7 @@ const NovelCard = memo(function NovelCard({
               e.stopPropagation();
               onEdit(novel);
             }}
+            aria-label="编辑"
           >
             <Pencil className="size-3.5" />
           </Button>
@@ -954,6 +1003,7 @@ const NovelCard = memo(function NovelCard({
             size="icon"
             className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={handleDuplicate}
+            aria-label="复制小说"
           >
             <Copy className="size-3.5" />
           </Button>
@@ -965,6 +1015,7 @@ const NovelCard = memo(function NovelCard({
               size="icon"
               className="h-7 w-7 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
               onClick={(e) => e.stopPropagation()}
+              aria-label="删除"
             >
               <Trash2 className="size-3.5" />
             </Button>

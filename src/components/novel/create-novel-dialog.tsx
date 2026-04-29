@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Sparkles, Loader2, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateNovelForm } from '@/lib/format';
 
 
 
@@ -181,23 +182,9 @@ export function CreateNovelDialog() {
   }, []);
 
   const validate = useCallback((): boolean => {
-    const newErrors: Partial<FormState> = {};
-
-    if (!form.title.trim()) {
-      newErrors.title = '请输入小说标题';
-    } else if (form.title.trim().length > 50) {
-      newErrors.title = '标题不能超过50个字符';
-    }
-
-    const words = parseInt(form.targetWords);
-    if (isNaN(words) || words < 1000) {
-      newErrors.targetWords = '目标字数至少1000';
-    } else if (words > 5000000) {
-      newErrors.targetWords = '目标字数不能超过500万';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const { errors, valid } = validateNovelForm(form);
+    setErrors(errors);
+    return valid;
   }, [form]);
 
   const handleSubmit = async () => {

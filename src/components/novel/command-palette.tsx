@@ -24,34 +24,8 @@ import {
   Settings2,
   Keyboard,
   Lightbulb,
-  FileText,
-  Users,
-  Compass,
-  GitBranch,
-  List,
-  Film,
-  MessageCircle,
-  Layers,
-  Activity,
-  Flag,
-  RefreshCcw,
 } from 'lucide-react';
-import { STEPS } from '@/lib/steps-config';
-
-const iconMap: Record<string, React.ElementType> = {
-  Lightbulb,
-  FileText,
-  Users,
-  Compass,
-  GitBranch,
-  List,
-  Film,
-  MessageCircle,
-  Layers,
-  Activity,
-  Flag,
-  RefreshCcw,
-};
+import { STEPS, iconMap } from '@/lib/steps-config';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);

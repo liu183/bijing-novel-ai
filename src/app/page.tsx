@@ -12,6 +12,7 @@ import { GenerateStepDialog } from '@/components/novel/generate-step-dialog';
 import { ModelSettingsDialog } from '@/components/novel/model-settings-dialog';
 import { CommandPalette } from '@/components/novel/command-palette';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 export default function HomePage() {
   const viewMode = useAppStore((s) => s.viewMode);
@@ -21,37 +22,39 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <main className="flex-1">
+        <ErrorBoundary>
         <AnimatePresence mode="wait">
           {viewMode === 'dashboard' && (
-            <motion.div key="dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+            <motion.div key="dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="view-transition">
               <DashboardView />
             </motion.div>
           )}
           {viewMode === 'workspace' && (
-            <motion.div key="workspace" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
+            <motion.div key="workspace" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="view-transition">
               <WorkspaceView />
             </motion.div>
           )}
           {viewMode === 'reader' && (
-            <motion.div key="reader" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
+            <motion.div key="reader" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="view-transition">
               <ReaderView />
             </motion.div>
           )}
           {viewMode === 'console' && currentNovel && (
-            <motion.div key="console" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
+            <motion.div key="console" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="view-transition">
               <div className="h-[calc(100vh-3.5rem)]">
                 <AgentConsole novelId={currentNovel.id} />
               </div>
             </motion.div>
           )}
           {viewMode === 'console' && !currentNovel && (
-            <motion.div key="console-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+            <motion.div key="console-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="view-transition">
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-muted-foreground text-sm">请先创建或选择一个小说项目以使用智能体控制台</p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+        </ErrorBoundary>
       </main>
       <CreateNovelDialog />
       <GenerateStepDialog />
