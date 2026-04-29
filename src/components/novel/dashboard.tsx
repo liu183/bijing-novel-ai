@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,7 +73,7 @@ import { exportNovelToDocxFormatted } from '@/lib/export-docx-formatted';
 import { addExportHistory } from '@/lib/export-utils';
 import { TOTAL_STEPS, genreColors } from '@/lib/constants';
 
-const statusConfig: Record<string, { label: string; className: string }> = {
+const statusConfig: Record<NovelData['status'], { label: string; className: string }> = {
   draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
   writing: { label: '创作中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
   completed: { label: '已完成', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' },
@@ -523,42 +524,40 @@ export function DashboardView() {
             {/* Search Input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/60" />
-              <input
+              <Input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="搜索小说标题、题材或描述..."
-                className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-background text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50 transition-all"
+                className="h-10 pl-10 pr-4 rounded-xl border-border bg-background text-sm placeholder:text-muted-foreground/50 focus-visible:ring-amber-500/30 focus-visible:border-amber-500/50"
               />
             </div>
 
             {/* Genre Filter Chips */}
             {allGenres.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setFilterGenre(null)}
-                  aria-label="筛选全部题材"
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                    !filterGenre
-                      ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
-                      : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                  }`}
+                <Badge
+                  asChild
+                  variant={!filterGenre ? undefined : "outline"}
+                  className={!filterGenre
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20 hover:bg-amber-600 cursor-pointer select-none rounded-full px-3 py-1'
+                    : 'rounded-full px-3 py-1 cursor-pointer select-none text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                  }
                 >
-                  全部
-                </button>
+                  <button onClick={() => setFilterGenre(null)} aria-label="筛选全部题材">全部</button>
+                </Badge>
                 {allGenres.map((genre) => (
-                  <button
+                  <Badge
                     key={genre}
-                    onClick={() => setFilterGenre(filterGenre === genre ? null : genre)}
-                    aria-label={`筛选题材: ${genre}`}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                      filterGenre === genre
-                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
-                        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                    }`}
+                    asChild
+                    variant={filterGenre === genre ? undefined : "outline"}
+                    className={filterGenre === genre
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20 hover:bg-amber-600 cursor-pointer select-none rounded-full px-3 py-1'
+                      : 'rounded-full px-3 py-1 cursor-pointer select-none text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    }
                   >
-                    {genre}
-                  </button>
+                    <button onClick={() => setFilterGenre(filterGenre === genre ? null : genre)} aria-label={`筛选题材: ${genre}`}>{genre}</button>
+                  </Badge>
                 ))}
               </div>
             )}
@@ -697,7 +696,8 @@ export function DashboardView() {
           <div className="fixed bottom-6 right-6 sm:hidden z-50">
             <button
               onClick={() => setCreateDialogOpen(true)}
-              className="w-14 h-14 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+              aria-label="新建小说"
+              className="focus-ring-visible w-14 h-14 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
             >
               <Plus className="w-6 h-6" />
             </button>

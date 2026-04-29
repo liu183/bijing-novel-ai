@@ -34,7 +34,10 @@ export function WritingGoalWidget() {
       const dateStr = date.toDateString();
       const dayLabel = i === 0 ? '今天' : i === 1 ? '昨天' : `${date.getMonth() + 1}/${date.getDate()}`;
       const dayWords = currentNovel.chapters
-        .filter(ch => new Date(ch.createdAt).toDateString() === dateStr)
+        .filter(ch => {
+          const chTime = Math.max(new Date(ch.createdAt).getTime(), new Date(ch.updatedAt || ch.createdAt).getTime());
+          return new Date(chTime).toDateString() === dateStr;
+        })
         .reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
       days.push({ label: dayLabel, words: dayWords });
     }

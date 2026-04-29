@@ -38,7 +38,7 @@ interface ChapterData {
 }
 
 interface MessageData {
-  id?: string;
+  id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   stepRef?: number;
@@ -53,7 +53,7 @@ export interface NovelData {
   style: string;
   targetWords: number;
   description: string;
-  status: string;
+  status: 'draft' | 'writing' | 'completed' | 'archived';
   currentStep: number;
   createdAt: string;
   updatedAt: string;

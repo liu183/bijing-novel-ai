@@ -638,27 +638,64 @@ export function ReaderView() {
     }
   };
 
+  // Font size cycle helper
+  const cycleFontSize = useCallback((direction: 'up' | 'down') => {
+    const sizes: Array<ReaderPrefs['fontSize']> = ['small', 'medium', 'large'];
+    const idx = sizes.indexOf(readerPrefs.fontSize);
+    if (direction === 'up' && idx < sizes.length - 1) {
+      updatePref('fontSize', sizes[idx + 1]);
+    } else if (direction === 'down' && idx > 0) {
+      updatePref('fontSize', sizes[idx - 1]);
+    }
+  }, [readerPrefs.fontSize, updatePref]);
+
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Only handle when reader is the active view
       if (useAppStore.getState().viewMode !== 'reader') return;
-      // Only handle when not typing in input
+      // Only handle when not typing in input or content-editable
       if (
         e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable)
       ) {
         return;
       }
-      if (e.key === 'ArrowLeft') {
+
+      // Chapter navigation
+      if (e.key === 'ArrowLeft' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
         goToPrevChapter();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
         goToNextChapter();
+      }
+      // Toggle TOC
+      else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        setTocOpen(prev => !prev);
+      }
+      // Escape: close TOC if open, or go back to workspace
+      else if (e.key === 'Escape') {
+        if (tocOpen) {
+          setTocOpen(false);
+        } else {
+          setViewMode('workspace');
+        }
+      }
+      // Font size
+      else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        cycleFontSize('up');
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        cycleFontSize('down');
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [goToPrevChapter, goToNextChapter]);
+  }, [goToPrevChapter, goToNextChapter, tocOpen, setViewMode, cycleFontSize]);
 
   // Format word count — imported from @/lib/format
 

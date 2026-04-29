@@ -170,6 +170,58 @@ export function CommandPalette() {
           })}
         </CommandGroup>
 
+        {/* Reader Shortcuts (only in reader view) */}
+        {viewMode === 'reader' && (
+          <CommandGroup heading="阅读器快捷键">
+            <CommandItem value="reader-shortcuts" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">上一章</span>
+              <CommandShortcut>← / k</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">下一章</span>
+              <CommandShortcut>→ / j</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">目录开关</span>
+              <CommandShortcut>t</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">返回工作台</span>
+              <CommandShortcut>Esc</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">增大字号</span>
+              <CommandShortcut>+</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">减小字号</span>
+              <CommandShortcut>-</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
+        )}
+
+        {/* Workspace Shortcuts (only in workspace view) */}
+        {viewMode === 'workspace' && (
+          <CommandGroup heading="工作台快捷键">
+            <CommandItem value="ws-shortcuts" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">下一步</span>
+              <CommandShortcut>j / ↓</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">上一步</span>
+              <CommandShortcut>k / ↑</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">编辑切换</span>
+              <CommandShortcut>e</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="" onSelect={() => {}}>
+              <span className="flex-1 text-xs text-muted-foreground">生成步骤</span>
+              <CommandShortcut>g</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
+        )}
+
         {/* Quick Actions */}
         <CommandGroup heading="快捷操作">
           <CommandItem

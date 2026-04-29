@@ -32,6 +32,9 @@ import {
   Send,
   BookOpen,
   Loader2,
+  List,
+  FileText,
+  Lightbulb,
   ChevronRight,
   X,
   CheckCircle2,
@@ -63,15 +66,36 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
 import { WritingGoalWidget } from '@/components/novel/writing-goal-widget';
 import { streamSSE } from '@/lib/sse-parser';
 import { Input } from '@/components/ui/input';
 import { fireConfetti } from '@/lib/confetti';
 
-// Sanitize excerpt HTML: strip all tags EXCEPT <mark> to prevent XSS
-function sanitizeExcerpt(html: string): string {
-  return html.replace(/<(?!\/?mark)[^>]*>/gi, '');
+// Safely render search excerpts that may contain <mark> tags from the server.
+// Splits by <mark>/<\/mark> and renders alternating plain-text / highlighted segments.
+function HighlightedExcerpt({ text }: { text: string }) {
+  const parts = text.split(/(<\/mark>|<mark>)/i);
+  const elements: React.ReactNode[] = [];
+  let inside = false;
+  for (const part of parts) {
+    if (part.toLowerCase() === '<mark>') {
+      inside = true;
+      continue;
+    }
+    if (part.toLowerCase() === '</mark>') {
+      inside = false;
+      continue;
+    }
+    if (inside) {
+      elements.push(<mark key={elements.length}>{part}</mark>);
+    } else {
+      // Strip any remaining HTML tags for safety
+      elements.push(<span key={elements.length}>{part.replace(/<[^>]*>/g, '')}</span>);
+    }
+  }
+  return <>{elements}</>;
 }
 
 // Phase color mapping for text/borders
@@ -166,7 +190,8 @@ export function WorkspaceView() {
           setCurrentNovel(data);
           // Initialize chat messages from the server
           if (data.messages && data.messages.length > 0) {
-            setChatMessages(data.messages.map((m: { role: string; content: string; stepRef?: number; createdAt?: string }) => ({
+            setChatMessages(data.messages.map((m: { id?: string; role: string; content: string; stepRef?: number; createdAt?: string }) => ({
+              id: m.id || `srv-${Date.now()}-${Math.random().toString(36).slice(2)}`,
               role: m.role as 'user' | 'assistant' | 'system',
               content: m.content,
               stepRef: m.stepRef,
@@ -689,8 +714,9 @@ export function WorkspaceView() {
                   <p className="text-sm font-medium truncate">{result.title}</p>
                   <p
                     className="text-xs text-muted-foreground mt-0.5 line-clamp-2 [&_mark]:bg-amber-200 dark:[&_mark]:bg-amber-700/40 [&_mark]:rounded px-0.5"
-                    dangerouslySetInnerHTML={{ __html: sanitizeExcerpt(result.excerpt) }}
-                  />
+                  >
+                    <HighlightedExcerpt text={result.excerpt} />
+                  </p>
                 </div>
               </button>
             ))}
@@ -895,61 +921,39 @@ export function WorkspaceView() {
           </AnimatePresence>
         </div>
 
-        {/* Mobile tab bar */}
-        <div role="tablist" className="flex border-t bg-background shrink-0">
-          <button
-            role="tab"
-            id="tab-steps"
-            aria-selected={mobileTab === 'steps'}
-            aria-controls="panel-steps"
-            onClick={() => setMobileTab('steps')}
-            className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors ${
-              mobileTab === 'steps'
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-muted-foreground'
-            }`}
-          >
-            <List className="size-4" />
-            步骤
-          </button>
-          <button
-            role="tab"
-            id="tab-content"
-            aria-selected={mobileTab === 'content'}
-            aria-controls="panel-content"
-            onClick={() => setMobileTab('content')}
-            className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors ${
-              mobileTab === 'content'
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-muted-foreground'
-            }`}
-          >
-            <FileText className="size-4" />
-            内容
-          </button>
-          <button
-            role="tab"
-            id="tab-chat"
-            aria-selected={mobileTab === 'chat'}
-            aria-controls="panel-chat"
-            onClick={() => setMobileTab('chat')}
-            className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors relative ${
-              mobileTab === 'chat'
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-muted-foreground'
-            }`}
-          >
-            <MessageSquare className="size-4" />
-            对话
-          </button>
-          <button
-            onClick={() => setViewMode('reader')}
-            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors text-muted-foreground"
-          >
-            <BookOpen className="size-4" />
-            阅读
-          </button>
-        </div>
+        {/* Mobile tab bar — shadcn Tabs for proper ARIA roles */}
+        <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as typeof mobileTab)} className="shrink-0">
+          <TabsList className="w-full h-auto rounded-none border-t border-border bg-background p-0 gap-0">
+            <TabsTrigger
+              value="steps"
+              className="flex-1 flex-col gap-1 py-2.5 px-0 rounded-none border-0 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-none data-[state=active]:border-0 text-muted-foreground"
+            >
+              <List className="size-4" />
+              <span className="text-[11px]">步骤</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="content"
+              className="flex-1 flex-col gap-1 py-2.5 px-0 rounded-none border-0 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-none data-[state=active]:border-0 text-muted-foreground"
+            >
+              <FileText className="size-4" />
+              <span className="text-[11px]">内容</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="chat"
+              className="flex-1 flex-col gap-1 py-2.5 px-0 rounded-none border-0 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-none data-[state=active]:border-0 text-muted-foreground"
+            >
+              <MessageSquare className="size-4" />
+              <span className="text-[11px]">对话</span>
+            </TabsTrigger>
+            <button
+              onClick={() => setViewMode('reader')}
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors text-muted-foreground"
+            >
+              <BookOpen className="size-4" />
+              <span className="text-[11px]">阅读</span>
+            </button>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Batch Chapter Dialog */}
