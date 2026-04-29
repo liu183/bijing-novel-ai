@@ -18,6 +18,7 @@ const DashboardView = React.lazy(() => import('@/components/novel/dashboard').th
 const CreateNovelDialog = React.lazy(() => import('@/components/novel/create-novel-dialog').then(m => ({ default: m.CreateNovelDialog })));
 const GenerateStepDialog = React.lazy(() => import('@/components/novel/generate-step-dialog').then(m => ({ default: m.GenerateStepDialog })));
 const ModelSettingsDialog = React.lazy(() => import('@/components/novel/model-settings-dialog').then(m => ({ default: m.ModelSettingsDialog })));
+const SettingsDialog = React.lazy(() => import('@/components/novel/settings-dialog').then(m => ({ default: m.SettingsDialog })));
 
 // ─── View Skeleton Components ───
 function DashboardSkeleton() {
@@ -214,6 +215,9 @@ export default function HomePage() {
       </DialogSuspenseFallback>
       <DialogSuspenseFallback>
         <ModelSettingsDialog />
+      </DialogSuspenseFallback>
+      <DialogSuspenseFallback>
+        <SettingsDialog />
       </DialogSuspenseFallback>
       <CommandPalette />
     </div>

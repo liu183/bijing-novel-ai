@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, memo, useMemo, lazy, Suspense } from 'react';
 import { useAppStore, type NovelData } from '@/store/app-store';
 import { usePaginatedList } from '@/hooks/use-pagination';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,7 +58,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { EditNovelDialog } from './edit-novel-dialog';
-import { StatsChart } from './stats-chart';
+const StatsChart = lazy(() => import('./stats-chart').then(m => ({ default: m.StatsChart })));
 import {
   AlertDialog,
   AlertDialogAction,
@@ -425,7 +425,31 @@ export function DashboardView() {
 
       {/* Writing Statistics Charts */}
       {!loading && novels.length > 0 && (
-        <StatsChart novels={novels} />
+        <Suspense fallback={
+          <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="space-y-3 mb-4">
+              <div className="h-7 w-40 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-56 rounded bg-muted animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+                  <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                  <div className="space-y-2">
+                    {[1, 2, 3, 4].map(j => (
+                      <div key={j} className="flex items-center gap-2">
+                        <div className="h-4 w-16 rounded bg-muted/60 animate-pulse" />
+                        <div className="flex-1 h-4 rounded bg-muted/40 animate-pulse" style={{ width: `${60 + j * 10}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        }>
+          <StatsChart novels={novels} />
+        </Suspense>
       )}
 
       {/* Novel Projects Section */}

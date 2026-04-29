@@ -176,9 +176,13 @@ export function WorkspaceView() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const originalContentRef = useRef<string>('');
+  const editContentRef = useRef<string>('');
   const handleSaveRef = useRef<() => void>(() => {});
   const chatAbortRef = useRef<AbortController | null>(null);
   const [autoSaveIndicator, setAutoSaveIndicator] = useState(false);
+
+  // Keep editContentRef in sync with editContent (avoids stale closure in auto-save)
+  editContentRef.current = editContent;
 
   // Abort chat streaming fetch on unmount
   useEffect(() => {
@@ -643,13 +647,29 @@ export function WorkspaceView() {
   // Debounced auto-save when editing step content
   useEffect(() => {
     if (!editing || !editContent || editContent === originalContentRef.current) return;
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
+      // Read the latest content from ref to avoid stale closure
+      const contentToSave = editContentRef.current;
+      if (!contentToSave || !currentNovel) return;
       setAutoSaveIndicator(true);
-      handleSaveRef.current();
-      setTimeout(() => setAutoSaveIndicator(false), 1500);
+      try {
+        await fetch(`/api/novels/${currentNovel.id}/steps`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stepNumber: currentStep,
+            content: contentToSave,
+            status: currentStepData?.status || 'pending',
+          }),
+        });
+      } catch {
+        // silent auto-save failure
+      } finally {
+        setTimeout(() => setAutoSaveIndicator(false), 1500);
+      }
     }, 3000);
     return () => clearTimeout(timer);
-  }, [editContent, editing]);
+  }, [editContent, editing, currentNovel, currentStep, currentStepData]);
 
   // Handle chat keydown (Ctrl+Enter to send)
   const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 export async function POST(
   _request: NextRequest,
@@ -9,25 +10,19 @@ export async function POST(
     const { id } = await params;
 
     // Fetch the original novel with all its steps
-    const original = await db.novel.findUnique({
-      where: { id },
-      include: {
-        steps: { orderBy: { stepNumber: 'asc' } },
-      },
+    const original = await getNovelOr404(id, {
+      include: { steps: { orderBy: { stepNumber: 'asc' } } },
     });
-
-    if (!original) {
-      return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
-    }
+    if (!original) return errorResponse('Novel not found', 404);
 
     // Create a new novel with "(副本)" suffix
-    const newTitle = original.title.replace(/（副本）$/, '') + '（副本）';
+    const newTitle = (original.title as string).replace(/（副本）$/, '') + '（副本）';
 
     const duplicatedNovel = await db.novel.create({
       data: {
         title: newTitle,
         genre: original.genre,
-        subgenre: original.subgenre || '',
+        subgenre: (original.subgenre as string) || '',
         style: original.style,
         targetWords: original.targetWords,
         description: original.description,
@@ -36,10 +31,11 @@ export async function POST(
       },
     });
 
-    // Copy all steps
-    if (original.steps.length > 0) {
+    // Copy all steps (include was passed so steps exist on the record)
+    const steps = (original as unknown as { steps: Array<{ stepNumber: number; title: string; content: string; status: string }> }).steps;
+    if (steps.length > 0) {
       await db.novelStep.createMany({
-        data: original.steps.map((step) => ({
+        data: steps.map((step) => ({
           novelId: duplicatedNovel.id,
           stepNumber: step.stepNumber,
           title: step.title,
@@ -52,6 +48,6 @@ export async function POST(
     return NextResponse.json(duplicatedNovel, { status: 201 });
   } catch (error) {
     console.error('Failed to duplicate novel:', error);
-    return NextResponse.json({ error: 'Failed to duplicate novel' }, { status: 500 });
+    return errorResponse('Failed to duplicate novel', 500);
   }
 }

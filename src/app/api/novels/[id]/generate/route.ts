@@ -1,8 +1,9 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAIService } from '@/lib/ai';
+import { callAI, type ChatMessage } from '@/lib/ai';
 import { getSystemPrompt, getUserInputPrompt } from '@/lib/ai-prompts';
 import { STEPS } from '@/lib/steps-config';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 // Vercel Serverless Function 最大执行时间（秒）
 // Hobby: 60s, Pro: 300s
@@ -25,17 +26,12 @@ export async function POST(
     stepNumber = reqStepNumber;
 
     if (!stepNumber || stepNumber < 1 || stepNumber > 12) {
-      return NextResponse.json(
-        { error: '无效的步骤编号，请提供 1-12 之间的数字' },
-        { status: 400 }
-      );
+      return errorResponse('无效的步骤编号，请提供 1-12 之间的数字', 400);
     }
 
     // Get novel
-    const novel = await db.novel.findUnique({ where: { id } });
-    if (!novel) {
-      return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
-    }
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
 
     // Get previous completed steps
     const previousSteps = await db.novelStep.findMany({
@@ -59,8 +55,6 @@ export async function POST(
       update: { status: 'generating' },
     });
 
-    // Initialize AI (Nvidia NIM)
-    const ai = await createAIService();
     const systemPrompt = getSystemPrompt(stepNumber, novel, previousSteps);
     const userPrompt = getUserInputPrompt(stepNumber, inputs || {});
 
@@ -68,15 +62,13 @@ export async function POST(
       console.log(`[Generate] Novel: ${novel.title}, Step: ${stepNumber}, Messages: ${previousSteps.length} previous steps`);
     }
 
-    const completion = await ai.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      model: requestModel || undefined,
-    });
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
 
-    const content = completion.choices[0]?.message?.content || '';
+    const result = await callAI({ messages, model: requestModel || undefined });
+    const content = result.content;
 
     if (!content.trim()) {
       throw new Error('AI 返回了空内容，请重试');
@@ -150,43 +142,25 @@ export async function POST(
 
     // 针对不同错误类型返回更友好的提示
     if (errorMsg.includes('API_KEY') || errorMsg.includes('API Key') || errorMsg.includes('环境变量未设置')) {
-      return NextResponse.json(
-        { error: 'AI 服务未配置，请先设置对应的服务商 API Key 环境变量' },
-        { status: 503 }
-      );
+      return errorResponse('AI 服务未配置，请先设置对应的服务商 API Key 环境变量', 503);
     }
 
     if (errorMsg.includes('timeout') || errorMsg.includes('TIMEOUT') || errorMsg.includes('Timeout')) {
-      return NextResponse.json(
-        { error: 'AI 生成超时，请稍后重试（可能需要较长时间处理）' },
-        { status: 504 }
-      );
+      return errorResponse('AI 生成超时，请稍后重试（可能需要较长时间处理）', 504);
     }
 
     if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
-      return NextResponse.json(
-        { error: 'AI 服务认证失败，请检查 API Key 是否正确' },
-        { status: 503 }
-      );
+      return errorResponse('AI 服务认证失败，请检查 API Key 是否正确', 503);
     }
 
     if (errorMsg.includes('429') || errorMsg.includes('rate limit')) {
-      return NextResponse.json(
-        { error: 'AI 服务请求频率超限，请稍后重试' },
-        { status: 429 }
-      );
+      return errorResponse('AI 服务请求频率超限，请稍后重试', 429);
     }
 
     if (errorMsg.includes('does not exist') || errorMsg.includes('relation')) {
-      return NextResponse.json(
-        { error: '数据库表结构异常，请联系管理员初始化数据库' },
-        { status: 500 }
-      );
+      return errorResponse('数据库表结构异常，请联系管理员初始化数据库', 500);
     }
 
-    return NextResponse.json(
-      { error: `生成失败: ${errorMsg}` },
-      { status: 500 }
-    );
+    return errorResponse(`生成失败: ${errorMsg}`, 500);
   }
 }

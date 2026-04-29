@@ -592,6 +592,27 @@ main {
 }
 .animate-blink { animation: blink 1s step-end infinite; }
 
+/* ========== NEW: Tooltip fade-in animation ========== */
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.tooltip-animate {
+  animation: tooltip-fade-in 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-animate {
+    animation: none !important;
+  }
+}
+
 /* ========== NEW: Gentle float for decorative elements ========== */
 @keyframes gentleFloat {
   0%, 100% { transform: translateY(0); }

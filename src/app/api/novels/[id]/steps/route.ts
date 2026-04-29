@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { STEPS } from '@/lib/steps-config';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 // Helper: Auto-detect and update novel status based on all steps
 async function autoDetectNovelStatus(novelId: string) {
@@ -41,6 +42,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    // Validate novel exists
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
+
     const steps = await db.novelStep.findMany({
       where: { novelId: id },
       orderBy: { stepNumber: 'asc' },
@@ -48,7 +54,7 @@ export async function GET(
     return NextResponse.json(steps);
   } catch (error) {
     console.error('Failed to fetch steps:', error);
-    return NextResponse.json({ error: 'Failed to fetch steps' }, { status: 500 });
+    return errorResponse('Failed to fetch steps', 500);
   }
 }
 
@@ -62,7 +68,7 @@ export async function PUT(
     const { stepNumber, content, title, status } = body;
 
     if (!stepNumber) {
-      return NextResponse.json({ error: 'stepNumber is required' }, { status: 400 });
+      return errorResponse('stepNumber is required', 400);
     }
 
     const step = await db.novelStep.upsert({
@@ -87,7 +93,7 @@ export async function PUT(
     return NextResponse.json(step);
   } catch (error) {
     console.error('Failed to update step:', error);
-    return NextResponse.json({ error: 'Failed to update step' }, { status: 500 });
+    return errorResponse('Failed to update step', 500);
   }
 }
 
@@ -102,7 +108,7 @@ export async function POST(
 
     const stepConfig = STEPS.find(s => s.number === stepNumber);
     if (!stepConfig) {
-      return NextResponse.json({ error: 'Invalid step number' }, { status: 400 });
+      return errorResponse('Invalid step number', 400);
     }
 
     // Upsert step
@@ -137,6 +143,6 @@ export async function POST(
     return NextResponse.json(step);
   } catch (error) {
     console.error('Failed to save step:', error);
-    return NextResponse.json({ error: 'Failed to save step' }, { status: 500 });
+    return errorResponse('Failed to save step', 500);
   }
 }

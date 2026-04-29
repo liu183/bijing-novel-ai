@@ -1,7 +1,8 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAIService } from '@/lib/ai';
+import { callAI, type ChatMessage } from '@/lib/ai';
 import { buildChapterPrompt } from '@/lib/ai-prompts';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 // Vercel Serverless Function 最大执行时间（秒）
 export const maxDuration = 60;
@@ -19,7 +20,7 @@ export async function GET(
     return NextResponse.json(chapters);
   } catch (error) {
     console.error('Failed to fetch chapters:', error);
-    return NextResponse.json({ error: 'Failed to fetch chapters' }, { status: 500 });
+    return errorResponse('Failed to fetch chapters', 500);
   }
 }
 
@@ -32,10 +33,8 @@ export async function POST(
     const body = await request.json();
     const { chapterNumber, model: requestModel } = body;
 
-    const novel = await db.novel.findUnique({ where: { id } });
-    if (!novel) {
-      return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
-    }
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
 
     // Get all completed steps for context
     const completedSteps = await db.novelStep.findMany({
@@ -51,7 +50,7 @@ export async function POST(
     });
 
     if (!completedSteps.find(s => s.stepNumber === 2)?.content) {
-      return NextResponse.json({ error: '请先完成Step 2（一页提要）才能生成章节' }, { status: 400 });
+      return errorResponse('请先完成Step 2（一页提要）才能生成章节', 400);
     }
 
     // Update or create chapter
@@ -66,7 +65,6 @@ export async function POST(
       update: { status: 'writing' },
     });
 
-    const ai = await createAIService();
     const systemPrompt = buildChapterPrompt(
       novel,
       completedSteps.map(s => ({ stepNumber: s.stepNumber, content: s.content })),
@@ -74,15 +72,13 @@ export async function POST(
       chapterNumber,
     );
 
-    const completion = await ai.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `请创作第${chapterNumber}章的完整正文。注意与前面章节的衔接。` },
-      ],
-      model: requestModel || undefined,
-    });
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `请创作第${chapterNumber}章的完整正文。注意与前面章节的衔接。` },
+    ];
 
-    const content = completion.choices[0]?.message?.content || '';
+    const result = await callAI({ messages, model: requestModel || undefined });
+    const content = result.content;
     const wordCount = content.replace(/\s/g, '').length;
 
     // Extract chapter title from first line if it looks like a title
@@ -113,10 +109,7 @@ export async function POST(
     return NextResponse.json({ success: true, chapter });
   } catch (error) {
     console.error('Failed to generate chapter:', error);
-    return NextResponse.json(
-      { error: `章节生成失败: ${error instanceof Error ? error.message : 'Unknown error'}` },
-      { status: 500 }
-    );
+    return errorResponse(`章节生成失败: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
   }
 }
 
@@ -130,7 +123,7 @@ export async function PUT(
     const { chapterNumber, title, content } = body;
 
     if (!chapterNumber) {
-      return NextResponse.json({ error: 'chapterNumber is required' }, { status: 400 });
+      return errorResponse('chapterNumber is required', 400);
     }
 
     const chapter = await db.chapter.update({
@@ -147,7 +140,7 @@ export async function PUT(
     return NextResponse.json(chapter);
   } catch (error) {
     console.error('Failed to update chapter:', error);
-    return NextResponse.json({ error: 'Failed to update chapter' }, { status: 500 });
+    return errorResponse('Failed to update chapter', 500);
   }
 }
 
@@ -161,7 +154,7 @@ export async function DELETE(
     const chapterNumber = parseInt(searchParams.get('number') || '0');
 
     if (!chapterNumber) {
-      return NextResponse.json({ error: 'chapterNumber query param is required' }, { status: 400 });
+      return errorResponse('chapterNumber query param is required', 400);
     }
 
     await db.chapter.delete({
@@ -171,6 +164,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete chapter:', error);
-    return NextResponse.json({ error: 'Failed to delete chapter' }, { status: 500 });
+    return errorResponse('Failed to delete chapter', 500);
   }
 }

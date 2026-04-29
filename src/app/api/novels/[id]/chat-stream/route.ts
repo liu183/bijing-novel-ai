@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { streamAI, type ChatMessage } from '@/lib/ai';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 export const maxDuration = 60;
 
@@ -13,13 +14,12 @@ export async function POST(
     const body = await request.json();
     const { message, model: requestModel } = body;
 
-    const novel = await db.novel.findUnique({ where: { id } });
-    if (!novel) {
-      return new Response(JSON.stringify({ error: 'Novel not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!message?.trim()) {
+      return errorResponse('消息不能为空', 400);
     }
+
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('小说不存在', 404);
 
     // Build message history from DB
     const recentMessages = await db.chatMessage.findMany({
@@ -109,9 +109,7 @@ export async function POST(
       },
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Chat stream failed' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('Chat stream failed:', error);
+    return errorResponse('聊天流处理失败', 500);
   }
 }

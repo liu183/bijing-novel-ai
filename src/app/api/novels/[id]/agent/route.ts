@@ -1,12 +1,14 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAIService } from '@/lib/ai';
+import { callAI, type ChatMessage } from '@/lib/ai';
 import { getAgent, getSkillsForAgent, type AgentRole } from '@/lib/agents';
 import {
   emitToAgentService,
   saveActivity,
   buildNovelContext,
   getRecentMessages,
+  getNovelOr404,
+  errorResponse,
 } from '@/lib/agent-helpers';
 
 // Vercel Serverless Function 最大执行时间（秒）
@@ -33,17 +35,12 @@ export async function POST(
     };
 
     if (!message?.trim()) {
-      return NextResponse.json(
-        { error: '消息内容不能为空' },
-        { status: 400 }
-      );
+      return errorResponse('消息内容不能为空', 400);
     }
 
     // ── 1. Validate novel exists ──────────────────────────────────────────
-    const novel = await db.novel.findUnique({ where: { id: novelId } });
-    if (!novel) {
-      return NextResponse.json({ error: '小说不存在' }, { status: 404 });
-    }
+    const novel = await getNovelOr404(novelId);
+    if (!novel) return errorResponse('小说不存在', 404);
 
     // ── 2. Determine target agent ─────────────────────────────────────────
     const targetAgent = requestedAgentId
@@ -51,10 +48,7 @@ export async function POST(
       : getAgent('director');
 
     if (!targetAgent) {
-      return NextResponse.json(
-        { error: `未找到Agent: ${requestedAgentId ?? 'director'}` },
-        { status: 400 }
-      );
+      return errorResponse(`未找到Agent: ${requestedAgentId ?? 'director'}`, 400);
     }
 
     // ── 3. Save the user message ─────────────────────────────────────────
@@ -129,23 +123,19 @@ ${skillsDescription || '（暂无可用技能）'}
 6. 保持你独特的角色个性和专业风格`;
 
     // ── 7. Call LLM (Nvidia NIM) ───────────────────────────────────────
-    const ai = await createAIService();
-
-    const chatHistory = recentMessages.map((m) => ({
+    const chatHistory: ChatMessage[] = recentMessages.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
 
-    const completion = await ai.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...chatHistory,
-        { role: 'user', content: message },
-      ],
-      model: requestModel || undefined,
-    });
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...chatHistory,
+      { role: 'user', content: message },
+    ];
 
-    const agentContent = completion.choices[0]?.message?.content || '';
+    const result = await callAI({ messages, model: requestModel || undefined });
+    const agentContent = result.content;
 
     // ── 8. Parse response to detect skill usage ──────────────────────────
     let usedSkillId: string | null = null;
@@ -259,11 +249,9 @@ ${skillsDescription || '（暂无可用技能）'}
       content: `处理请求时出错: ${error instanceof Error ? error.message : '未知错误'}`,
     }).catch(() => {});
 
-    return NextResponse.json(
-      {
-        error: `Agent处理失败: ${error instanceof Error ? error.message : '未知错误'}`,
-      },
-      { status: 500 }
+    return errorResponse(
+      `Agent处理失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      500
     );
   }
 }

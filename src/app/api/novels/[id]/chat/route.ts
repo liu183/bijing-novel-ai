@@ -1,7 +1,8 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAIService } from '@/lib/ai';
+import { callAI, type ChatMessage } from '@/lib/ai';
 import { STEPS } from '@/lib/steps-config';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 // Vercel Serverless Function 最大执行时间（秒）
 export const maxDuration = 60;
@@ -16,13 +17,11 @@ export async function POST(
     const { message, model: requestModel } = body;
 
     if (!message?.trim()) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return errorResponse('Message is required', 400);
     }
 
-    const novel = await db.novel.findUnique({ where: { id } });
-    if (!novel) {
-      return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
-    }
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
 
     // Get recent chat history
     const recentMessages = await db.chatMessage.findMany({
@@ -60,21 +59,19 @@ ${stepsContext || '（暂无已完成步骤）'}
 - 用中文回答`;
 
     // Build message history
-    const chatHistory = recentMessages.reverse().map(m => ({
+    const chatHistory: ChatMessage[] = recentMessages.reverse().map(m => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
 
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
       ...chatHistory,
-      { role: 'user' as const, content: message },
+      { role: 'user', content: message },
     ];
 
-    const ai = await createAIService();
-    const completion = await ai.chat.completions.create({ messages, model: requestModel || undefined });
-
-    const response = completion.choices[0]?.message?.content || '';
+    const result = await callAI({ messages, model: requestModel || undefined });
+    const response = result.content;
 
     // Save messages to database
     await db.chatMessage.create({
@@ -96,9 +93,6 @@ ${stepsContext || '（暂无已完成步骤）'}
     return NextResponse.json({ success: true, response });
   } catch (error) {
     console.error('Failed to chat:', error);
-    return NextResponse.json(
-      { error: `对话失败: ${error instanceof Error ? error.message : 'Unknown error'}` },
-      { status: 500 }
-    );
+    return errorResponse(`对话失败: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
   }
 }

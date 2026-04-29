@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { streamAI, type ChatMessage } from '@/lib/ai';
 import { buildChapterPrompt } from '@/lib/ai-prompts';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 export const maxDuration = 120;
 
@@ -14,12 +15,8 @@ export async function POST(
     const body = await request.json();
     const { chapterNumber, model: requestModel } = body;
 
-    const novel = await db.novel.findUnique({ where: { id } });
-    if (!novel) {
-      return new Response(JSON.stringify({ error: 'Novel not found' }), {
-        status: 404, headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
 
     const completedSteps = await db.novelStep.findMany({
       where: { novelId: id, status: 'completed' },
@@ -34,9 +31,7 @@ export async function POST(
     });
 
     if (!completedSteps.find(s => s.stepNumber === 2)?.content) {
-      return new Response(JSON.stringify({ error: '请先完成Step 2（一页提要）才能生成章节' }), {
-        status: 400, headers: { 'Content-Type': 'application/json' },
-      });
+      return errorResponse('请先完成Step 2（一页提要）才能生成章节', 400);
     }
 
     // Create/update chapter status
@@ -124,9 +119,7 @@ export async function POST(
       },
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Chapter stream failed' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('Chapter stream failed:', error);
+    return errorResponse('Chapter stream failed', 500);
   }
 }

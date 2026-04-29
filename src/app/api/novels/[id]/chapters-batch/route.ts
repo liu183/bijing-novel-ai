@@ -1,7 +1,8 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { streamAI, type ChatMessage } from '@/lib/ai';
+import { callAI, type ChatMessage } from '@/lib/ai';
 import { buildChapterPrompt } from '@/lib/ai-prompts';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 export const maxDuration = 300;
 
@@ -14,17 +15,15 @@ export async function POST(
     const body = await request.json();
     const { startChapter, endChapter, model: requestModel } = body;
 
-    const novel = await db.novel.findUnique({ where: { id } });
-    if (!novel) {
-      return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
-    }
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
 
     const start = startChapter || 1;
     const end = endChapter || start;
     const total = end - start + 1;
 
     if (start < 1 || end < start || total > 20) {
-      return NextResponse.json({ error: 'Invalid chapter range (1-20 chapters max)' }, { status: 400 });
+      return errorResponse('Invalid chapter range (1-20 chapters max)', 400);
     }
 
     const completedSteps = await db.novelStep.findMany({
@@ -33,7 +32,7 @@ export async function POST(
     });
 
     if (!completedSteps.find(s => s.stepNumber === 2)?.content) {
-      return NextResponse.json({ error: '请先完成Step 2（一页提要）才能生成章节' }, { status: 400 });
+      return errorResponse('请先完成Step 2（一页提要）才能生成章节', 400);
     }
 
     // Get existing chapters for context (truncated, same as single-chapter)
@@ -42,7 +41,7 @@ export async function POST(
       orderBy: { number: 'asc' },
     });
 
-    const results = [];
+    const results: Array<Record<string, unknown>> = [];
 
     for (let chapterNum = start; chapterNum <= end; chapterNum++) {
       const systemPrompt = buildChapterPrompt(
@@ -54,18 +53,13 @@ export async function POST(
       );
 
       try {
-        const completion = await (async () => {
-          const ai = await import('@/lib/ai').then(m => m.createAIService());
-          return ai.chat.completions.create({
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: `请创作第${chapterNum}章。` },
-            ],
-            model: requestModel || undefined,
-          });
-        })();
+        const messages: ChatMessage[] = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `请创作第${chapterNum}章。` },
+        ];
 
-        const content = completion.choices[0]?.message?.content || '';
+        const result = await callAI({ messages, model: requestModel || undefined });
+        const content = result.content;
         if (!content.trim()) continue;
 
         let title = `第${chapterNum}章`;
@@ -101,9 +95,6 @@ export async function POST(
     });
   } catch (error) {
     console.error('Batch chapter generation failed:', error);
-    return NextResponse.json(
-      { error: `批量生成失败: ${error instanceof Error ? error.message : 'Unknown'}` },
-      { status: 500 }
-    );
+    return errorResponse(`批量生成失败: ${error instanceof Error ? error.message : 'Unknown'}`, 500);
   }
 }

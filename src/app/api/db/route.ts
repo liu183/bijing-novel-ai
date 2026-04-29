@@ -3,7 +3,7 @@
 // 用于检查数据库连接状态和自动初始化表结构
 // ============================================================================
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { checkDatabaseHealth, autoInitDatabase } from '@/lib/db';
 
 export async function GET() {
@@ -54,8 +54,14 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const expectedToken = process.env.DB_INIT_TOKEN || 'bijing-novel-init-2024';
+    const providedToken = request.headers.get('x-init-token');
+    if (providedToken !== expectedToken) {
+      return NextResponse.json({ status: 'error', message: '未授权：缺少或错误的初始化令牌' }, { status: 403 });
+    }
+
     const result = await autoInitDatabase();
 
     if (result.ok) {

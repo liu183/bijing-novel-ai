@@ -8,24 +8,25 @@ import { STEPS } from '@/lib/steps-config';
 
 /**
  * Fetch a novel by its ID. Returns the novel record if found, or null.
- * Used with `getNovelOr404` below for a one-liner pattern in API routes.
  */
 export async function fetchNovel(novelId: string) {
   return db.novel.findUnique({ where: { id: novelId } });
 }
 
 /**
- * Fetch a novel by ID and return a 404 NextResponse if not found.
+ * Fetch a novel by ID, returning null if not found.
  * Usage in route handlers:
  *   const novel = await getNovelOr404(novelId);
- *   if (!novel) return novel; // TypeScript narrows to NextResponse
- *   // ... novel is fully typed here
+ *   if (!novel) return errorResponse('小说不存在', 404);
  */
-export async function getNovelOr404(novelId: string) {
-  const novel = await fetchNovel(novelId);
-  if (!novel) {
-    return NextResponse.json({ error: '小说不存在' }, { status: 404 }) as unknown as null;
-  }
+export async function getNovelOr404(
+  novelId: string,
+  options?: { include?: Record<string, unknown> }
+) {
+  const novel = await db.novel.findUnique({
+    where: { id: novelId },
+    ...(options?.include ? { include: options.include } : {}),
+  });
   return novel;
 }
 

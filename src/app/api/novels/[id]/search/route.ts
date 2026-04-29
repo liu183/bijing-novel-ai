@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { STEPS } from '@/lib/steps-config';
+import { getNovelOr404, errorResponse } from '@/lib/agent-helpers';
 
 export async function GET(
   request: NextRequest,
@@ -8,11 +9,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    // Validate novel exists
+    const novel = await getNovelOr404(id);
+    if (!novel) return errorResponse('Novel not found', 404);
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
 
     if (!query || !query.trim()) {
-      return NextResponse.json({ error: 'Query parameter "q" is required' }, { status: 400 });
+      return errorResponse('Query parameter "q" is required', 400);
     }
 
     const keyword = query.trim();
@@ -55,7 +61,7 @@ export async function GET(
     return NextResponse.json({ query: keyword, results, total: results.length });
   } catch (error) {
     console.error('Search failed:', error);
-    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
+    return errorResponse('Search failed', 500);
   }
 }
 

@@ -12,7 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Feather, Moon, Sun, Plus, Bot, Home, ChevronRight } from 'lucide-react';
+import { Feather, Moon, Sun, Plus, Bot, Home, ChevronRight, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModelSelector } from './model-selector';
 
@@ -30,6 +30,7 @@ export function Header() {
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const currentNovel = useAppStore((s) => s.currentNovel);
   const currentChapterNumber = useAppStore((s) => s.currentChapterNumber);
+  const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -162,6 +163,17 @@ export function Header() {
         <div className="flex items-center gap-1.5">
           {/* Model Selector */}
           <ModelSelector />
+
+          {/* Settings */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSettingsOpen(true)}
+            className="h-9 w-9 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
+            aria-label="设置"
+          >
+            <Settings className="size-4 text-muted-foreground" />
+          </Button>
 
           {/* Dark Mode Toggle */}
           <Button

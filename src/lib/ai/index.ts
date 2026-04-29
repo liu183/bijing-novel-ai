@@ -67,16 +67,23 @@ function getApiKeyForModel(modelId: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Core API call — unified for all providers
+// Internal helper: build AI request config (shared by callAI & streamAI)
 // ---------------------------------------------------------------------------
 
-async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
+interface AIRequestConfig {
+  model: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+  apiUrl: string;
+}
+
+function buildAIRequest(options: ChatCompletionOptions): AIRequestConfig {
   const model = options.model || DEFAULT_MODEL_ID;
   const apiKey = getApiKeyForModel(model);
   const apiBase = getApiBaseForModel(model);
   const modelInfo = getModelInfo(model);
+  const provider = modelInfo?.provider;
 
-  // Build request body (OpenAI compatible)
   const body: Record<string, unknown> = {
     model,
     messages: options.messages.map((m) => ({
@@ -94,21 +101,31 @@ async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionRes
     body.stream = true;
   }
 
-  if (process.env.NODE_ENV === 'development') console.log(`[AI] Calling model: ${model} (provider: ${modelInfo?.provider || 'unknown'})`);
-  if (process.env.NODE_ENV === 'development') console.log(`[AI] API base: ${apiBase}`);
-  if (process.env.NODE_ENV === 'development') console.log(`[AI] Messages count: ${options.messages.length}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[AI] ${options.stream ? 'Streaming' : 'Calling'} model: ${model} (provider: ${provider || 'unknown'})`);
+    console.log(`[AI] API base: ${apiBase}`);
+    console.log(`[AI] Messages count: ${options.messages.length}`);
+  }
 
-  // Build headers based on provider
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
   };
 
   // Nvidia NIM requires an additional NVAPI-KEY header
-  const provider = modelInfo?.provider;
   if (provider !== '智谱GLM') {
     headers['NVAPI-KEY'] = apiKey;
   }
+
+  return { model, headers, body, apiUrl: `${apiBase}/chat/completions` };
+}
+
+// ---------------------------------------------------------------------------
+// Core API call — unified for all providers
+// ---------------------------------------------------------------------------
+
+export async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
+  const { model, headers, body, apiUrl } = buildAIRequest(options);
 
   // AbortController for timeout
   const controller = new AbortController();
@@ -116,7 +133,7 @@ async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionRes
 
   let response: Response;
   try {
-    response = await fetch(`${apiBase}/chat/completions`, {
+    response = await fetch(apiUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -162,34 +179,7 @@ async function callAI(options: ChatCompletionOptions): Promise<ChatCompletionRes
 export async function* streamAI(
   options: ChatCompletionOptions
 ): AsyncGenerator<{ type: 'content' | 'done' | 'error'; data: string }> {
-  const model = options.model || DEFAULT_MODEL_ID;
-  const apiKey = getApiKeyForModel(model);
-  const apiBase = getApiBaseForModel(model);
-  const modelInfo = getModelInfo(model);
-
-  const body = {
-    model,
-    messages: options.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
-    temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? (modelInfo?.maxTokens ? Math.min(8192, modelInfo.maxTokens) : 8192),
-    top_p: options.topP ?? 0.9,
-    frequency_penalty: options.frequencyPenalty ?? 0.3,
-    presence_penalty: options.presencePenalty ?? 0.3,
-    stream: true,
-  };
-
-  if (process.env.NODE_ENV === 'development') console.log(`[AI] Streaming model: ${model}`);
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${apiKey}`,
-  };
-  if (modelInfo?.provider !== '智谱GLM') {
-    headers['NVAPI-KEY'] = apiKey;
-  }
+  const { headers, body, apiUrl } = buildAIRequest({ ...options, stream: true });
 
   // AbortController for timeout (60s — slightly longer than non-streaming 55s)
   const controller = new AbortController();
@@ -197,7 +187,7 @@ export async function* streamAI(
 
   let response: Response;
   try {
-    response = await fetch(`${apiBase}/chat/completions`, {
+    response = await fetch(apiUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -287,71 +277,6 @@ export async function* streamAI(
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
-
-/**
- * 创建一个兼容的 AI 服务实例
- */
-export async function createAIService() {
-  return {
-    chat: {
-      completions: {
-        /**
-         * 创建聊天补全
-         * 兼容 OpenAI SDK 的调用格式
-         */
-        async create(options: {
-          messages: { role: string; content: string }[];
-          thinking?: { type: string };
-          model?: string;
-          temperature?: number;
-          max_tokens?: number;
-        }): Promise<{
-          choices: Array<{
-            message: { content: string; role: string };
-            finish_reason: string;
-          }>;
-          model: string;
-          id: string;
-          usage?: {
-            prompt_tokens: number;
-            completion_tokens: number;
-            total_tokens: number;
-          };
-        }> {
-          const result = await callAI({
-            messages: options.messages.map((m) => ({
-              role: m.role as 'system' | 'user' | 'assistant',
-              content: m.content,
-            })),
-            model: options.model,
-            temperature: options.temperature,
-            maxTokens: options.max_tokens,
-          });
-
-          return {
-            choices: [
-              {
-                message: {
-                  content: result.content,
-                  role: 'assistant',
-                },
-                finish_reason: result.finishReason,
-              },
-            ],
-            model: result.model,
-            id: result.id,
-            usage: result.usage,
-          };
-        },
-
-        /**
-         * 流式聊天补全
-         */
-        stream: streamAI,
-      },
-    },
-  };
-}
 
 /**
  * 快速调用 - 发送消息并获取回复

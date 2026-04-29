@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAIService } from '@/lib/ai';
+import { callAI, type ChatMessage } from '@/lib/ai';
 import {
   getAgent,
   getSkill,
@@ -10,6 +10,8 @@ import {
   emitToAgentService,
   saveActivity,
   buildNovelContext,
+  getNovelOr404,
+  errorResponse,
 } from '@/lib/agent-helpers';
 
 // Re-export for convenience
@@ -44,41 +46,27 @@ export async function POST(
 
     // ── 1. Validate inputs ───────────────────────────────────────────────
     if (!agentId) {
-      return NextResponse.json(
-        { error: '请指定目标Agent' },
-        { status: 400 }
-      );
+      return errorResponse('请指定目标Agent', 400);
     }
     if (!skillId) {
-      return NextResponse.json(
-        { error: '请指定要执行的技能' },
-        { status: 400 }
-      );
+      return errorResponse('请指定要执行的技能', 400);
     }
 
     // ── 2. Validate agent exists ─────────────────────────────────────────
     const agent = getAgent(agentId);
     if (!agent) {
-      return NextResponse.json(
-        { error: `未找到Agent: ${agentId}` },
-        { status: 404 }
-      );
+      return errorResponse(`未找到Agent: ${agentId}`, 404);
     }
 
     // ── 3. Validate skill exists ─────────────────────────────────────────
     const skill = getSkill(skillId);
     if (!skill) {
-      return NextResponse.json(
-        { error: `未找到技能: ${skillId}` },
-        { status: 404 }
-      );
+      return errorResponse(`未找到技能: ${skillId}`, 404);
     }
 
     // ── 4. Validate novel exists ─────────────────────────────────────────
-    const novel = await db.novel.findUnique({ where: { id: novelId } });
-    if (!novel) {
-      return NextResponse.json({ error: '小说不存在' }, { status: 404 });
-    }
+    const novel = await getNovelOr404(novelId);
+    if (!novel) return errorResponse('小说不存在', 404);
 
     // ── 5. Validate required skill parameters ────────────────────────────
     const missingParams = skill.parameters
@@ -188,20 +176,17 @@ ${skill.outputFormat}
 5. 如果某些参数未提供但有默认值，请使用默认值
 6. 始终使用中文输出`;
 
-    // ── 8. Call LLM (Nvidia NIM) ──────────────────────────────────────
-    const ai = await createAIService();
+    // ── 8. Call LLM ──────────────────────────────────────────────────────
+    const messages: ChatMessage[] = [
+      { role: 'system', content: skillSystemPrompt },
+      {
+        role: 'user',
+        content: `请执行技能「${skill.name}」，使用上述参数进行创作。`,
+      },
+    ];
 
-    const completion = await ai.chat.completions.create({
-      messages: [
-        { role: 'system', content: skillSystemPrompt },
-        {
-          role: 'user',
-          content: `请执行技能「${skill.name}」，使用上述参数进行创作。`,
-        },
-      ],
-    });
-
-    const result = completion.choices[0]?.message?.content || '';
+    const result = await callAI({ messages });
+    const resultContent = result.content;
 
     // ── 9. Save activities ───────────────────────────────────────────────
     const skillCompleteActivity = await saveActivity({
@@ -210,10 +195,10 @@ ${skill.outputFormat}
       agentName: agent.name,
       agentRole: agent.role,
       type: 'skill_complete',
-      content: `技能「${skill.name}」执行完成，输出长度：${result.length}字`,
+      content: `技能「${skill.name}」执行完成，输出长度：${resultContent.length}字`,
       skillName: skill.name,
       skillDescription: skill.description,
-      metadata: { outputLength: result.length },
+      metadata: { outputLength: resultContent.length },
     });
     activities.push(skillCompleteActivity);
 
@@ -222,7 +207,7 @@ ${skill.outputFormat}
       data: {
         novelId,
         role: 'agent',
-        content: result,
+        content: resultContent,
         agentId: agent.id,
         agentName: agent.name,
         skillUsed: skill.id,
@@ -244,7 +229,7 @@ ${skill.outputFormat}
     // ── 10. Return result ────────────────────────────────────────────────
     return NextResponse.json({
       success: true,
-      result,
+      result: resultContent,
       activities,
       skill: {
         id: skill.id,
@@ -270,11 +255,9 @@ ${skill.outputFormat}
       content: `技能执行失败: ${error instanceof Error ? error.message : '未知错误'}`,
     }).catch(() => {});
 
-    return NextResponse.json(
-      {
-        error: `技能执行失败: ${error instanceof Error ? error.message : '未知错误'}`,
-      },
-      { status: 500 }
+    return errorResponse(
+      `技能执行失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      500
     );
   }
 }
