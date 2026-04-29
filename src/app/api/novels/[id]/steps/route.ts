@@ -2,6 +2,39 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { STEPS } from '@/lib/steps-config';
 
+// Helper: Auto-detect and update novel status based on all steps
+async function autoDetectNovelStatus(novelId: string) {
+  try {
+    const allSteps = await db.novelStep.findMany({
+      where: { novelId },
+      select: { status: true },
+    });
+    const totalSteps = STEPS.length;
+    const completedOrLocked = allSteps.filter(
+      (s) => s.status === 'completed' || s.status === 'locked'
+    ).length;
+
+    if (completedOrLocked >= totalSteps) {
+      // All steps done → novel is completed
+      await db.novel.update({
+        where: { id: novelId },
+        data: { status: 'completed' },
+      });
+    } else if (completedOrLocked > 0) {
+      // Some steps done → novel is at least writing
+      const novel = await db.novel.findUnique({ where: { id: novelId }, select: { status: true } });
+      if (novel && novel.status === 'draft') {
+        await db.novel.update({
+          where: { id: novelId },
+          data: { status: 'writing' },
+        });
+      }
+    }
+  } catch {
+    // Best-effort, don't fail the main request
+  }
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -47,6 +80,9 @@ export async function PUT(
         ...(status !== undefined && { status }),
       },
     });
+
+    // Auto-detect novel status after PUT
+    await autoDetectNovelStatus(id);
 
     return NextResponse.json(step);
   } catch (error) {
@@ -94,6 +130,9 @@ export async function POST(
         data: { currentStep: Math.max(stepNumber, (await db.novel.findUnique({ where: { id } }))?.currentStep || 0) },
       });
     }
+
+    // Auto-detect novel status after POST
+    await autoDetectNovelStatus(id);
 
     return NextResponse.json(step);
   } catch (error) {

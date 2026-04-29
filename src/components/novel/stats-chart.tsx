@@ -5,9 +5,12 @@ import type { NovelData } from '@/store/app-store';
 import {
   BarChart,
   Bar,
+  PieChart,
+  Pie,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   Cell,
 } from 'recharts';
@@ -16,7 +19,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart3, ChevronDown, ChevronUp, PieChartIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { TOTAL_STEPS, genreChartColors } from '@/lib/constants';
 
@@ -38,6 +42,100 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
     );
   }
   return null;
+}
+
+// Pie chart tooltip for genre distribution
+function GenrePieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { fill: string } }> }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg border bg-background px-3 py-2 shadow-md text-xs">
+        <p className="font-medium mb-1">{payload[0].name}</p>
+        <p style={{ color: payload[0].payload.fill }} className="flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-full" style={{ backgroundColor: payload[0].payload.fill }} />
+          {payload[0].value} 部小说
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
+// Genre Distribution Pie Chart Component
+function GenrePieChart({ novels }: { novels: NovelData[] }) {
+  // Count novels per genre
+  const genreCountMap: Record<string, number> = {};
+  novels.forEach((novel) => {
+    if (novel.genre) {
+      genreCountMap[novel.genre] = (genreCountMap[novel.genre] || 0) + 1;
+    }
+  });
+
+  const genreData = Object.entries(genreCountMap)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  const totalNovels = genreData.reduce((s, d) => s + d.value, 0);
+
+  if (genreData.length === 0) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-card p-5">
+        <h3 className="text-sm font-semibold mb-4 flex items-center gap-1.5">
+          <span className="size-2 rounded-full bg-violet-500" />
+          题材分布
+        </h3>
+        <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
+          暂无题材数据
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Card className="rounded-xl border border-border/60 p-5 shadow-none">
+      <CardHeader className="p-0 pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+          <span className="size-2 rounded-full bg-violet-500" />
+          题材分布
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="relative">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie
+                data={genreData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={90}
+                paddingAngle={2}
+                dataKey="value"
+                stroke="none"
+              >
+                {genreData.map((entry) => (
+                  <Cell
+                    key={`genre-${entry.name}`}
+                    fill={genreChartColors[entry.name] || '#6b7280'}
+                  />
+                ))}
+              </Pie>
+              <Tooltip content={<GenrePieTooltip />} />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Center text */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ marginTop: '-4px' }}>
+            <span className="text-xl font-bold">{totalNovels}</span>
+            <span className="text-[10px] text-muted-foreground">部小说</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 interface StatsChartProps {
@@ -97,7 +195,7 @@ export function StatsChart({ novels }: StatsChartProps) {
             viewport={{ once: true, margin: "-50px" }}
             transition={{ duration: 0.5 }}
           >
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Chart 1: Steps Progress */}
             <div className="rounded-xl border border-border/60 bg-card p-5">
               <h3 className="text-sm font-semibold mb-4 flex items-center gap-1.5">
@@ -210,6 +308,9 @@ export function StatsChart({ novels }: StatsChartProps) {
                 </span>
               </div>
             </div>
+
+            {/* Chart 3: Genre Distribution Pie */}
+            <GenrePieChart novels={novels} />
             </div>
           </motion.div>
         </CollapsibleContent>

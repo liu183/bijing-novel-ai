@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { BookOpen, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { fireConfetti } from '@/lib/confetti';
 
 // ─── Types ───
 interface BatchChapterResult {
@@ -162,6 +163,8 @@ export function BatchChapterDialog({ open, onOpenChange }: BatchChapterDialogPro
       // Show summary toast
       if (data.failed === 0) {
         toast.success(`批量生成完成！共 ${data.completed} 章全部成功`);
+        // Celebrate with confetti when all chapters succeed
+        setTimeout(fireConfetti, 300);
       } else {
         toast.warning(`批量生成完成：${data.completed} 章成功，${data.failed} 章失败`);
       }

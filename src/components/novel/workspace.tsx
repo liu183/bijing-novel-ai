@@ -59,6 +59,7 @@ import {
   HelpCircle,
   Keyboard,
   Check,
+  Search,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -73,9 +74,13 @@ import {
 } from '@/components/ui/popover';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { notify } from '@/components/ui/notifications';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
+import { WritingGoalWidget } from '@/components/novel/writing-goal-widget';
 import { streamSSE } from '@/lib/sse-parser';
+import { Input } from '@/components/ui/input';
+import { fireConfetti } from '@/lib/confetti';
 
 // Icon mapping
 const iconMap: Record<string, React.ElementType> = {
@@ -157,6 +162,13 @@ export function WorkspaceView() {
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [switchStepDialogOpen, setSwitchStepDialogOpen] = useState(false);
   const [pendingStep, setPendingStep] = useState<number | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ type: string; id: number; title: string; excerpt: string }>>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -275,9 +287,12 @@ export function WorkspaceView() {
     }
   };
 
-  // Handle save
+  // Handle save (with undo support)
   const handleSave = async () => {
     if (!currentNovel || !editing || !editContent) return;
+    // Push current content to undo stack before saving
+    const store = useAppStore.getState();
+    store.pushUndo(originalContentRef.current);
     setSaving(true);
     handleSaveRef.current = handleSave;
     try {
@@ -304,6 +319,7 @@ export function WorkspaceView() {
         }
         setEditing(false);
         toast.success('内容已保存');
+        notify('success', '自动保存成功');
       } else {
         toast.error('保存失败');
       }
@@ -334,6 +350,13 @@ export function WorkspaceView() {
         );
         if (currentNovel) {
           setCurrentNovel({ ...currentNovel, steps: updatedSteps });
+          // Check if all steps are completed/locked → celebration!
+          const allCompleted = updatedSteps.filter(
+            (s) => s.status === 'completed' || s.status === 'locked'
+          ).length;
+          if (allCompleted >= STEPS.length) {
+            setTimeout(fireConfetti, 300);
+          }
         }
         toast.success(`第${currentStep}步已确认锁定`);
       } else {
@@ -389,6 +412,7 @@ export function WorkspaceView() {
         throw new Error(data.error || '生成失败');
       }
       toast.success(`第${chapterNumber}章生成完成`);
+      notify('success', '步骤生成完成', `第${chapterNumber}步已完成`);
       // Refresh novel
       const novelRes = await fetch(`/api/novels/${currentNovel.id}`);
       if (novelRes.ok) {
@@ -470,6 +494,49 @@ export function WorkspaceView() {
     toast.success('对话已清空');
   }, [setChatMessages]);
 
+  // Handle search (non-debounced, called by debounce effect or Enter)
+  const handleSearch = useCallback(async () => {
+    if (!currentNovel || !searchQuery.trim()) return;
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/novels/${currentNovel.id}/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data.results || []);
+        setSearchOpen(true);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [currentNovel, searchQuery]);
+
+  // Debounced search: 300ms after user stops typing
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchOpen(false);
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      handleSearch();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, handleSearch]);
+
+  const handleSearchSelect = (result: { type: string; id: number }) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    if (result.type === 'step') {
+      setCurrentStep(result.id);
+      setEditing(false);
+    } else if (result.type === 'chapter') {
+      useAppStore.getState().setCurrentChapterNumber(result.id);
+      setViewMode('reader');
+    }
+  };
+
   // Keyboard navigation between steps
   useEffect(() => {
     if (!currentNovel) return;
@@ -477,15 +544,42 @@ export function WorkspaceView() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle when workspace is the active view
       if (useAppStore.getState().viewMode !== 'workspace') return;
-      // Don't navigate when typing in inputs/textareas
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        // Allow Ctrl+S/Cmd+S in textarea
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (isInput) {
+        // Allow Ctrl+S/Cmd+S in textarea/input
         if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
           if (editing && editContent) handleSaveRef.current();
           return;
         }
+        // Ctrl+Z: undo when editing in textarea
+        if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && editing) {
+          e.preventDefault();
+          const result = useAppStore.getState().undo(editContent);
+          if (result !== null) {
+            setEditContent(result);
+            toast.success('已撤销');
+ }
+          return;
+        }
+        // Ctrl+Shift+Z: redo
+        if (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey && editing) {
+          e.preventDefault();
+          const result = useAppStore.getState().redo(editContent);
+          if (result !== null) {
+            setEditContent(result);
+            toast.success('已重做');
+ }
+          return;
+        }
+        return;
+      }
+      // Ctrl+F: focus search (only when not typing in textarea)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
         return;
       }
       // Ctrl+S / Cmd+S global save
@@ -497,22 +591,17 @@ export function WorkspaceView() {
       // '?' or 'h' opens shortcuts help
       if (e.key === '?' || e.key === 'h') {
         e.preventDefault();
-        // Find and toggle the shortcuts help popover
         const helpBtn = document.querySelector('[data-shortcuts-help]');
         if (helpBtn) helpBtn.click();
         return;
       }
       if (e.key === 'e' || e.key === 'E') {
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-          e.preventDefault();
-          handleEditToggle();
-        }
-      }
+        e.preventDefault();
+        handleEditToggle();
+ }
       if (e.key === 'g' || e.key === 'G') {
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-          e.preventDefault();
-          handleGenerateStep();
-        }
+        e.preventDefault();
+        handleGenerateStep();
       }
       if (e.key === 'j' || e.key === 'ArrowDown') {
         e.preventDefault();
@@ -526,7 +615,7 @@ export function WorkspaceView() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentNovel, currentStep, setCurrentStep]);
+  }, [currentNovel, currentStep, editing, editContent, setCurrentStep]);
 
   // Debounced auto-save when editing step content
   useEffect(() => {
@@ -582,6 +671,71 @@ export function WorkspaceView() {
 
   return (
     <div className="flex flex-1 flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Search Bar - visible in workspace mode */}
+      <div className="relative border-b bg-background/95 backdrop-blur-sm shrink-0 z-20">
+        <div className="flex items-center gap-2 px-4 py-2 max-w-2xl mx-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (!e.target.value.trim()) {
+                  setSearchOpen(false);
+                  setSearchResults([]);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearch();
+                }
+                if (e.key === 'Escape') {
+                  setSearchOpen(false);
+                  searchInputRef.current?.blur();
+                }
+              }}
+              placeholder="搜索内容… (Ctrl+F)"
+              className="h-8 w-full rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 pl-8 pr-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400 transition-colors"
+            />
+          </div>
+          {searchLoading && <Loader2 className="size-4 animate-spin text-amber-500" />}
+        </div>
+        {/* Search Results Dropdown */}
+        {searchOpen && searchResults.length > 0 && (
+          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-[calc(100%-2rem)] max-w-2xl bg-background border rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
+            {searchResults.map((result, idx) => (
+              <button
+                key={`${result.type}-${result.id}-${idx}`}
+                onClick={() => handleSearchSelect(result)}
+                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b last:border-b-0"
+              >
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0 border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400">
+                  {result.type === 'step' ? '步骤' : '章节'}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{result.title}</p>
+                  <p
+                    className="text-xs text-muted-foreground mt-0.5 line-clamp-2 [&_mark]:bg-amber-200 dark:[&_mark]:bg-amber-700/40 [&_mark]:rounded px-0.5"
+                    dangerouslySetInnerHTML={{ __html: result.excerpt }}
+                  />
+                </div>
+              </button>
+            ))}
+            <div className="px-4 py-2 text-xs text-muted-foreground border-t">
+              共 {searchResults.length} 条结果
+            </div>
+          </div>
+        )}
+        {searchOpen && !searchLoading && searchQuery.trim() && searchResults.length === 0 && (
+          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-[calc(100%-2rem)] max-w-2xl bg-background border rounded-lg shadow-lg z-50 px-4 py-6 text-center">
+            <p className="text-sm text-muted-foreground">未找到匹配内容</p>
+          </div>
+        )}
+      </div>
+
       {/* Desktop: 3-panel resizable layout */}
       <div className="hidden md:flex flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -952,6 +1106,11 @@ function StepSidebar({
             style={{ width: `${progress}%` }}
           />
         </div>
+      </div>
+
+      {/* Writing Goal Widget */}
+      <div className="px-3 py-2 border-b shrink-0">
+        <WritingGoalWidget />
       </div>
 
       {/* Steps List */}

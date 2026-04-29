@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { type NovelData } from '@/store/app-store';
 import { GENRES, STYLES } from '@/lib/constants';
 import {
@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/select';
 import { Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 
 interface FormState {
@@ -128,6 +130,38 @@ export function EditNovelDialog({
       setSaving(false);
     }
   }, [novel, form, validate, onSave, onOpenChange]);
+
+  // ─── Export History ───
+  const [exportHistory, setExportHistory] = useState<Array<{ format: string; timestamp: number }>>([]);
+
+  useEffect(() => {
+    if (!open || !novel) return;
+    try {
+      const all = JSON.parse(localStorage.getItem('export-history') || '[]');
+      const filtered = all
+        .filter((e: { novelId: string }) => e.novelId === novel.id)
+        .slice(0, 3)
+        .map((e: { format: string; timestamp: number }) => ({ format: e.format, timestamp: e.timestamp }));
+      setExportHistory(filtered);
+    } catch { /* ignore */ }
+  }, [open, novel]);
+
+  const formatExportLabel = (format: string) => {
+    switch (format) {
+      case 'txt': return 'TXT';
+      case 'docx': return 'DOCX';
+      case 'docx-formatted': return 'DOCX（精排版）';
+      default: return format.toUpperCase();
+    }
+  };
+
+  const formatExportTime = (ts: number) => {
+    try {
+      return formatDistanceToNow(new Date(ts), { addSuffix: true, locale: zhCN });
+    } catch {
+      return '';
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -296,6 +330,21 @@ export function EditNovelDialog({
             )}
           </Button>
         </DialogFooter>
+
+        {/* Export History */}
+        {exportHistory.length > 0 && (
+          <div className="border-t mt-2 pt-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">导出记录</p>
+            <div className="space-y-1.5">
+              {exportHistory.map((e, i) => (
+                <div key={i} className="flex items-center justify-between text-xs text-muted-foreground/70">
+                  <span>{formatExportLabel(e.format)}</span>
+                  <span>{formatExportTime(e.timestamp)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

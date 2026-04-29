@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/select';
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { fireConfetti } from '@/lib/confetti';
+import { TOTAL_STEPS } from '@/lib/constants';
 
 export function GenerateStepDialog() {
   const open = useAppStore((s) => s.generateDialogOpen);
@@ -152,6 +154,14 @@ export function GenerateStepDialog() {
         const updatedNovel = await novelRes.json();
         setCurrentNovel(updatedNovel);
         setCurrentStep(stepNumber);
+
+        // Check if all steps are completed/locked → milestone celebration!
+        const completedSteps = (updatedNovel.steps || []).filter(
+          (s: { status: string }) => s.status === 'completed' || s.status === 'locked'
+        ).length;
+        if (completedSteps >= TOTAL_STEPS) {
+          setTimeout(fireConfetti, 300);
+        }
       }
 
       setOpen(false);

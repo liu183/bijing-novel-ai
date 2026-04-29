@@ -115,6 +115,11 @@ ${pacing ? `## 节奏参考\n${pacing}` : ''}
       update: { title, content, wordCount, status: 'completed' },
     });
 
+    // Ensure novel status is at least 'writing' after chapter creation
+    if (novel.status === 'draft') {
+      await db.novel.update({ where: { id }, data: { status: 'writing' } });
+    }
+
     return NextResponse.json({ success: true, chapter });
   } catch (error) {
     console.error('Failed to generate chapter:', error);

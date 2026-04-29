@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
 import { useAppStore, type NovelData } from '@/store/app-store';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,8 +37,20 @@ import {
   Copy,
   BookMarked,
   Wand2,
+  Monitor,
+  Pin,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { EditNovelDialog } from './edit-novel-dialog';
 import { StatsChart } from './stats-chart';
 import {
@@ -152,6 +164,20 @@ export function DashboardView() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState<string | null>(null);
+  const [pinnedNovelIds, setPinnedNovelIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('bijing-pinned-novels');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  const togglePinnedNovel = useCallback((id: string) => {
+    setPinnedNovelIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id];
+      localStorage.setItem('bijing-pinned-novels', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const fetchNovels = useCallback(async () => {
     try {
@@ -219,6 +245,11 @@ export function DashboardView() {
       const data = await res.json();
       await exportNovelToTxt(data, novel);
       toast.success('TXT 导出成功');
+      try {
+        const exportHistory = JSON.parse(localStorage.getItem('export-history') || '[]');
+        exportHistory.unshift({ novelId: novel.id, novelTitle: novel.title, format: 'txt', timestamp: Date.now() });
+        localStorage.setItem('export-history', JSON.stringify(exportHistory.slice(0, 50)));
+      } catch { /* ignore */ }
     } catch {
       toast.error('导出失败');
     }
@@ -234,6 +265,11 @@ export function DashboardView() {
       const data = await res.json();
       await exportNovelToDocx(data, novel);
       toast.success('DOCX 导出成功');
+      try {
+        const exportHistory = JSON.parse(localStorage.getItem('export-history') || '[]');
+        exportHistory.unshift({ novelId: novel.id, novelTitle: novel.title, format: 'docx', timestamp: Date.now() });
+        localStorage.setItem('export-history', JSON.stringify(exportHistory.slice(0, 50)));
+      } catch { /* ignore */ }
     } catch {
       toast.error('导出失败');
     }
@@ -267,6 +303,16 @@ export function DashboardView() {
     const matchesGenre = !filterGenre || n.genre === filterGenre;
     return matchesSearch && matchesGenre;
   });
+
+  // Sort: pinned novels first, then by updatedAt
+  const sortedNovels = useMemo(() => {
+    return [...filteredNovels].sort((a, b) => {
+      const aPinned = pinnedNovelIds.includes(a.id) ? 1 : 0;
+      const bPinned = pinnedNovelIds.includes(b.id) ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [filteredNovels, pinnedNovelIds]);
 
   // Compute stats
   const totalNovels = novels.length;
@@ -590,9 +636,9 @@ export function DashboardView() {
         )}
 
         {/* Novel Cards Grid */}
-        {!loading && filteredNovels.length > 0 && (
+        {!loading && sortedNovels.length > 0 && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredNovels.map((novel) => (
+            {sortedNovels.map((novel) => (
               <NovelCard
                 key={novel.id}
                 novel={novel}
@@ -602,6 +648,8 @@ export function DashboardView() {
                 onExportTxt={handleExportTxt}
                 onExportDocx={handleExportDocx}
                 onDuplicate={handleDuplicateNovel}
+                isPinned={pinnedNovelIds.includes(novel.id)}
+                onTogglePin={togglePinnedNovel}
               />
             ))}
           </div>
@@ -699,6 +747,8 @@ const NovelCard = memo(function NovelCard({
   onExportTxt,
   onExportDocx,
   onDuplicate,
+  isPinned,
+  onTogglePin,
 }: {
   novel: NovelData;
   onClick: (novel: NovelData) => void;
@@ -707,6 +757,8 @@ const NovelCard = memo(function NovelCard({
   onExportTxt: (novel: NovelData) => void;
   onExportDocx: (novel: NovelData) => void;
   onDuplicate: (novel: NovelData) => void;
+  isPinned: boolean;
+  onTogglePin: (id: string) => void;
 }) {
   const progress = Math.round((novel.currentStep / TOTAL_STEPS) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
@@ -745,6 +797,11 @@ const NovelCard = memo(function NovelCard({
       const data = await res.json();
       await exportNovelToDocxFormatted(data, novel);
       toast.success('DOCX（精排版）导出成功');
+      try {
+        const exportHistory = JSON.parse(localStorage.getItem('export-history') || '[]');
+        exportHistory.unshift({ novelId: novel.id, novelTitle: novel.title, format: 'docx-formatted', timestamp: Date.now() });
+        localStorage.setItem('export-history', JSON.stringify(exportHistory.slice(0, 50)));
+      } catch { /* ignore */ }
     } finally {
       setExporting(null);
     }
@@ -755,7 +812,34 @@ const NovelCard = memo(function NovelCard({
     onDuplicate(novel);
   };
 
+  // Sparkline data: chapter word counts
+  const sparklineData = useMemo(() => {
+    if (!novel.chapters || novel.chapters.length < 2) return null;
+    const wordCounts = novel.chapters
+      .filter((c) => c.wordCount > 0)
+      .map((c) => c.wordCount);
+    return wordCounts.length >= 2 ? wordCounts : null;
+  }, [novel.chapters]);
+
+  const sparklinePath = useMemo(() => {
+    if (!sparklineData || sparklineData.length < 2) return '';
+    const w = 60;
+    const h = 20;
+    const padding = 2;
+    const max = Math.max(...sparklineData);
+    const min = Math.min(...sparklineData);
+    const range = max - min || 1;
+    const points = sparklineData.map((val, i) => {
+      const x = padding + (i / (sparklineData.length - 1)) * (w - padding * 2);
+      const y = h - padding - ((val - min) / range) * (h - padding * 2);
+      return `${x},${y}`;
+    });
+    return points.join(' ');
+  }, [sparklineData]);
+
   return (
+    <ContextMenu>
+    <ContextMenuTrigger asChild>
     <Card
       className="group cursor-pointer py-4 transition-all duration-300 hover:shadow-lg hover:shadow-black/5 hover:shadow-amber-500/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60 hover:border-amber-500/20 dark:hover:border-amber-500/20"
       onClick={() => onClick(novel)}
@@ -766,6 +850,7 @@ const NovelCard = memo(function NovelCard({
             {novel.title}
           </CardTitle>
           <div className="flex items-center gap-1 shrink-0">
+            {isPinned && <Pin className="size-3.5 text-amber-500 fill-amber-500" />}
             <Badge className={`text-[10px] px-1.5 py-0.5 bg-gradient-to-r text-white ${genreColor} border-0`}>
               {novel.genre}
             </Badge>
@@ -914,5 +999,51 @@ const NovelCard = memo(function NovelCard({
         </div>
       </CardFooter>
     </Card>
+    </ContextMenuTrigger>
+    <ContextMenuContent className="w-48">
+      <ContextMenuItem onClick={(e) => { e.preventDefault(); onClick(novel); }}>
+        <Monitor className="size-4" />
+        打开工作台
+      </ContextMenuItem>
+      <ContextMenuItem onClick={(e) => { e.preventDefault(); onEdit(novel); }}>
+        <Pencil className="size-4" />
+        编辑
+      </ContextMenuItem>
+      <ContextMenuItem onClick={(e) => { e.preventDefault(); onDuplicate(novel); }}>
+        <Copy className="size-4" />
+        复制
+      </ContextMenuItem>
+      <ContextMenuItem onClick={(e) => { e.preventDefault(); onTogglePin(novel.id); }}>
+        <Pin className={`size-4 ${isPinned ? 'fill-amber-500 text-amber-500' : ''}`} />
+        {isPinned ? '取消置顶' : '置顶'}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>
+          <Download className="size-4" />
+          导出
+        </ContextMenuSubTrigger>
+        <ContextMenuSubContent className="w-40">
+          <ContextMenuItem onClick={(e) => { e.preventDefault(); onExportTxt(novel); }}>
+            <FileText className="size-4" />
+            导出 TXT
+          </ContextMenuItem>
+          <ContextMenuItem onClick={(e) => { e.preventDefault(); onExportDocx(novel); }}>
+            <FileType2 className="size-4" />
+            导出 DOCX
+          </ContextMenuItem>
+          <ContextMenuItem onClick={handleExportDocxFormatted}>
+            <FileType className="size-4" />
+            导出 DOCX（精排版）
+          </ContextMenuItem>
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+      <ContextMenuSeparator />
+      <ContextMenuItem variant="destructive" onClick={(e) => { e.preventDefault(); onDelete(novel.id); }}>
+        <Trash2 className="size-4" />
+        删除
+      </ContextMenuItem>
+    </ContextMenuContent>
+    </ContextMenu>
   );
 });

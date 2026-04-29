@@ -132,6 +132,17 @@ interface AppState {
   setSettingsOpen: (open: boolean) => void;
   selectedModel: string | null;
   setSelectedModel: (modelId: string | null) => void;
+
+  // Daily writing goal (persisted)
+  dailyGoal: number;
+  setDailyGoal: (goal: number) => void;
+
+  // Undo/Redo for step content editing (non-persisted)
+  undoStack: string[][];
+  redoStack: string[][];
+  pushUndo: (content: string) => void;
+  undo: (currentContent: string) => string | null;
+  redo: (currentContent: string) => string | null;
 }
 
 export const useAppStore = create<AppState>()(
@@ -210,12 +221,48 @@ export const useAppStore = create<AppState>()(
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       selectedModel: DEFAULT_MODEL_ID,
       setSelectedModel: (modelId) => set({ selectedModel: modelId }),
+
+      // Daily writing goal
+      dailyGoal: 3000,
+      setDailyGoal: (goal) => set({ dailyGoal: goal }),
+
+      // Undo/Redo
+      undoStack: [],
+      redoStack: [],
+      pushUndo: (content) =>
+        set((state) => ({
+          undoStack: [...state.undoStack.slice(-19), [content.split('\n')]],
+          redoStack: [],
+        })),
+      undo: (currentContent) => {
+        const state = useAppStore.getState();
+        if (state.undoStack.length === 0) return null;
+        const previous = state.undoStack[state.undoStack.length - 1];
+        const newUndo = state.undoStack.slice(0, -1);
+        set({
+          undoStack: newUndo,
+          redoStack: [...state.redoStack.slice(-19), currentContent.split('\n')],
+        });
+        return previous.join('\n');
+      },
+      redo: (currentContent) => {
+        const state = useAppStore.getState();
+        if (state.redoStack.length === 0) return null;
+        const next = state.redoStack[state.redoStack.length - 1];
+        const newRedo = state.redoStack.slice(0, -1);
+        set({
+          redoStack: newRedo,
+          undoStack: [...state.undoStack.slice(-19), currentContent.split('\n')],
+        });
+        return next.join('\n');
+      },
     }),
     {
       name: 'bijing-novel-ai-settings',
       partialize: (state) => ({
         selectedModel: state.selectedModel,
         lastOpenedNovelId: state.lastOpenedNovelId,
+        dailyGoal: state.dailyGoal,
       }),
     }
   )

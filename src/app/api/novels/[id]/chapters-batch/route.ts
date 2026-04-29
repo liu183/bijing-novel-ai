@@ -107,7 +107,7 @@ ${existingContent}
 
     await db.novel.update({
       where: { id },
-      data: { updatedAt: new Date() },
+      data: { updatedAt: new Date(), ...(novel.status === 'draft' ? { status: 'writing' } : {}) },
     });
 
     return NextResponse.json({

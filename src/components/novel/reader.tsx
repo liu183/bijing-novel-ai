@@ -44,6 +44,8 @@ import {
   X,
   Trash2,
   Zap,
+  List,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -58,9 +60,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { streamSSE } from '@/lib/sse-parser';
+import { notify } from '@/components/ui/notifications';
 
 // ─── Reader Preferences ───
 interface ReaderPrefs {
@@ -150,6 +159,17 @@ export function ReaderView() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [chapterLoading, setChapterLoading] = useState(false);
   const streamEndRef = useRef<HTMLDivElement>(null);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartXRef = useRef<number | null>(null);
+  const [readChapters, setReadChapters] = useState<Set<number>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const saved = localStorage.getItem(`reader-read-${currentNovel?.id}`);
+      if (saved) return new Set(JSON.parse(saved));
+    } catch { /* ignore */ }
+    return new Set();
+  });
   const updatePref = useCallback(<K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => {
     setReaderPrefs((prev) => {
       const next = { ...prev, [key]: value };
@@ -200,7 +220,7 @@ export function ReaderView() {
     setCurrentChapterIndex(0);
   }, [currentNovel?.id]);
 
-  // Save reading position to localStorage when chapter index changes
+  // Save reading position + mark chapter as read in localStorage
   useEffect(() => {
     if (!currentNovel?.id) return;
     try {
@@ -208,10 +228,23 @@ export function ReaderView() {
         chapter: currentChapterIndex,
         timestamp: Date.now(),
       }));
+      // Mark current chapter as read
+      const ch = chapters[currentChapterIndex];
+      if (ch) {
+        setReadChapters(prev => {
+          if (prev.has(ch.number)) return prev;
+          const next = new Set(prev);
+          next.add(ch.number);
+          try {
+            localStorage.setItem(`reader-read-${currentNovel.id}`, JSON.stringify([...next]));
+          } catch { /* ignore */ }
+          return next;
+        });
+      }
     } catch {
       // ignore storage errors
     }
-  }, [currentChapterIndex, currentNovel?.id]);
+  }, [currentChapterIndex, currentNovel?.id, chapters]);
 
   // Scroll progress tracking
   useEffect(() => {
@@ -380,10 +413,69 @@ export function ReaderView() {
         setCurrentChapterIndex(idx);
         setContentKey((k) => k + 1);
         setIsEditingContent(false);
+        setTocOpen(false);
       }
     },
     [chapters]
   );
+
+  // Navigate to chapter by index (for TOC)
+  const handleGoToChapter = useCallback(
+    (idx: number) => {
+      if (idx >= 0 && idx < chapters.length) {
+        setCurrentChapterIndex(idx);
+        setContentKey((k) => k + 1);
+        setIsEditingContent(false);
+        readingAreaRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        setTocOpen(false);
+      }
+    },
+    [chapters.length]
+  );
+
+  // Mark all chapters as read
+  const handleMarkAllRead = useCallback(() => {
+    if (!currentNovel?.id) return;
+    const allNums = chapters.map(c => c.number);
+    setReadChapters(new Set(allNums));
+    try {
+      localStorage.setItem(`reader-read-${currentNovel.id}`, JSON.stringify(allNums));
+    } catch { /* ignore */ }
+    toast.success('已标记全部已读');
+  }, [currentNovel?.id, chapters]);
+
+  // Swipe gesture handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (isEditingContent) return;
+    touchStartXRef.current = e.touches[0].clientX;
+  }, [isEditingContent]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || isEditingContent) {
+      touchStartXRef.current = null;
+      setSwipeOffset(0);
+      return;
+    }
+    const diff = e.changedTouches[0].clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(diff) > 80) {
+      if (diff > 0 && !isFirstChapter) {
+        goToPrevChapter();
+        toast.info('上一章');
+      } else if (diff < 0 && !isLastChapter) {
+        goToNextChapter();
+        toast.info('下一章');
+      }
+    }
+    setSwipeOffset(0);
+  }, [isEditingContent, isFirstChapter, isLastChapter, goToPrevChapter, goToNextChapter]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || isEditingContent) return;
+    const diff = e.touches[0].clientX - touchStartXRef.current;
+    // Clamp the visual offset to ±60px
+    setSwipeOffset(Math.max(-60, Math.min(60, diff)));
+  }, [isEditingContent]);
 
   // Save chapter title
   const handleSaveTitle = async () => {
@@ -435,6 +527,7 @@ export function ReaderView() {
         setCurrentNovel({ ...currentNovel, chapters: updatedChapters });
         setContentKey((k) => k + 1);
         toast.success('章节内容已保存');
+        notify('success', '章节已保存');
         setIsEditingContent(false);
       } else {
         toast.error('保存失败');
@@ -652,16 +745,29 @@ export function ReaderView() {
       {/* Top Bar */}
       <div className="sticky top-14 z-40 border-b border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-          {/* Left: Back */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('workspace')}
-            className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
-          >
-            <ArrowLeft className="size-4" />
-            <span className="hidden sm:inline">回到工作台</span>
-          </Button>
+          {/* Left: Back + TOC */}
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode('workspace')}
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              <span className="hidden sm:inline">回到工作台</span>
+            </Button>
+            {chapters.length > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTocOpen(true)}
+                className="gap-1 text-muted-foreground hover:text-foreground md:hidden"
+                aria-label="目录"
+              >
+                <List className="size-4" />
+              </Button>
+            )}
+          </div>
 
           {/* Center: Chapter Selector */}
           {chapters.length > 1 && (
@@ -691,15 +797,28 @@ export function ReaderView() {
             </div>
           )}
 
-          {/* Right: Generate */}
-          <Button
-            size="sm"
-            onClick={openGenerateDialog}
-            className="gap-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700 hover:shadow-md transition-all shrink-0"
-          >
-            <Plus className="size-3.5" />
-            <span className="hidden sm:inline">生成新章节</span>
-          </Button>
+          {/* Right: Generate + TOC */}
+          <div className="flex items-center gap-1 shrink-0">
+            {chapters.length > 1 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTocOpen(true)}
+                className="hidden md:flex text-muted-foreground hover:text-foreground"
+                aria-label="目录"
+              >
+                <List className="size-4" />
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={openGenerateDialog}
+              className="gap-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700 hover:shadow-md transition-all"
+            >
+              <Plus className="size-3.5" />
+              <span className="hidden sm:inline">生成新章节</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -829,6 +948,121 @@ export function ReaderView() {
 
       {/* Reading Area */}
       <div className="flex-1 bg-stone-50/50 dark:bg-stone-950/50 relative">
+        {/* Desktop TOC Panel */}
+        <AnimatePresence>
+          {tocOpen && (
+            <motion.div
+              initial={{ x: -280, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -280, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="hidden md:block absolute left-0 top-0 bottom-0 w-[280px] z-30 border-r border-border/60 bg-background/95 backdrop-blur-xl shadow-xl"
+            >
+              <div className="flex flex-col h-full">
+                <div className="px-4 py-3 border-b flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">章节目录</h3>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setTocOpen(false)}>
+                    <X className="size-4" />
+                  </Button>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="px-2 py-2 space-y-0.5">
+                    {chapters.map((ch, idx) => (
+                      <button
+                        key={ch.number}
+                        onClick={() => handleGoToChapter(idx)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors group ${
+                          idx === currentChapterIndex
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200'
+                            : 'hover:bg-muted/50 text-foreground/70 hover:text-foreground'
+                        }`}
+                      >
+                        {readChapters.has(ch.number) ? (
+                          <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500/70" />
+                        ) : (
+                          <span className="w-3.5 shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate text-[13px]">
+                            第{ch.number}章 {ch.title.replace(`第${ch.number}章`, '').trim()}
+                          </div>
+                          {ch.wordCount > 0 && (
+                            <div className="text-[10px] text-muted-foreground/50">
+                              {ch.wordCount.toLocaleString()}字
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <div className="px-3 py-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleMarkAllRead}
+                    className="w-full gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <CheckCircle2 className="size-3.5" />
+                    标记全部已读
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile TOC Sheet */}
+        <Sheet open={tocOpen} onOpenChange={setTocOpen}>
+          <SheetContent side="left" className="w-[280px] p-0">
+            <SheetHeader className="px-4 py-3 border-b">
+              <SheetTitle className="text-sm">章节目录</SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="flex-1 h-[calc(100vh-8rem)]">
+              <div className="px-2 py-2 space-y-0.5">
+                {chapters.map((ch, idx) => (
+                  <button
+                    key={ch.number}
+                    onClick={() => handleGoToChapter(idx)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                      idx === currentChapterIndex
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200'
+                        : 'hover:bg-muted/50 text-foreground/70 hover:text-foreground'
+                    }`}
+                  >
+                    {readChapters.has(ch.number) ? (
+                      <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500/70" />
+                    ) : (
+                      <span className="w-3.5 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-[13px]">
+                        第{ch.number}章 {ch.title.replace(`第${ch.number}章`, '').trim()}
+                      </div>
+                      {ch.wordCount > 0 && (
+                        <div className="text-[10px] text-muted-foreground/50">
+                          {ch.wordCount.toLocaleString()}字
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+            <div className="px-3 py-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleMarkAllRead}
+                className="w-full gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <CheckCircle2 className="size-3.5" />
+                标记全部已读
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+
         {/* Scroll Progress Bar */}
         <div className="sticky top-0 z-10 h-[2px] w-full bg-transparent">
           <div
@@ -843,7 +1077,14 @@ export function ReaderView() {
             }}
           />
         </div>
-        <div ref={readingAreaRef} className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)]">
+        <div
+          ref={readingAreaRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)] transition-transform duration-100 ease-out"
+          style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
+        >
           {chapterLoading ? (
             <div className="space-y-4 py-8 animate-pulse">
               <Skeleton className="h-8 w-3/5 mx-auto" />
@@ -1050,10 +1291,10 @@ export function ReaderView() {
             </div>
           )}
 
-          {/* Keyboard hint */}
+          {/* Keyboard + swipe hint */}
           {!isFirstChapter && !isLastChapter && (
             <p className="text-center text-xs text-muted-foreground/50 mt-12">
-              使用键盘 ← → 切换章节
+              使用键盘 ← → 或左右滑动切换章节
             </p>
           )}
         </div>
