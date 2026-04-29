@@ -18,7 +18,7 @@ interface ExportData {
   chapters: { number: number; title: string; content: string }[];
 }
 
-export async function exportNovelToPdf(data: ExportData, novel: NovelData) {
+export async function exportNovelToDocxFormatted(data: ExportData, novel: NovelData) {
   const children: Paragraph[] = [];
 
   // Title page
@@ -236,5 +236,5 @@ export async function exportNovelToPdf(data: ExportData, novel: NovelData) {
   });
 
   const blob = await (await import('docx')).Packer.toBlob(doc);
-  saveAs(blob, `${novel.title}.pdf`);
+  saveAs(blob, `${novel.title}.docx`);
 }

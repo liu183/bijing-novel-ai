@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/app-store';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +43,7 @@ import {
   Check,
   X,
   Trash2,
+  Zap,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -56,7 +57,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Reader Preferences ───
 interface ReaderPrefs {
@@ -132,9 +135,15 @@ export function ReaderView() {
   const [localChapterNum, setLocalChapterNum] = useState(1);
   const [contentKey, setContentKey] = useState(0);
   const [readerPrefs, setReaderPrefs] = useState<ReaderPrefs>(() => loadReaderPrefs());
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const readingAreaRef = useRef<HTMLDivElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [streamMode, setStreamMode] = useState(false);
+  const [streamContent, setStreamContent] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamEndRef = useRef<HTMLDivElement>(null);
   const updatePref = useCallback(<K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => {
     setReaderPrefs((prev) => {
       const next = { ...prev, [key]: value };
@@ -153,7 +162,25 @@ export function ReaderView() {
   useEffect(() => {
     setCurrentChapterIndex(0);
     setContentKey((k) => k + 1);
+    setScrollProgress(0);
   }, [currentNovel?.id]);
+
+  // Scroll progress tracking
+  useEffect(() => {
+    const container = readingAreaRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollHeight <= clientHeight) {
+        setScrollProgress(0);
+        return;
+      }
+      const progress = Math.min((scrollTop / (scrollHeight - clientHeight)) * 100, 100);
+      setScrollProgress(progress);
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Calculate next chapter number
   const nextChapterNumber = useMemo(() => {
@@ -165,6 +192,8 @@ export function ReaderView() {
   const openGenerateDialog = useCallback(() => {
     setLocalChapterNum(nextChapterNumber);
     setGenerateChapterNumber(nextChapterNumber);
+    setStreamContent('');
+    setIsStreaming(false);
     setGenerateDialogOpen(true);
   }, [nextChapterNumber, setGenerateChapterNumber]);
 
@@ -205,6 +234,91 @@ export function ReaderView() {
       setIsChapterGenerating(false);
     }
   }, [currentNovel, localChapterNum, isChapterGenerating, selectedModel, setIsChapterGenerating, setCurrentNovel]);
+
+  // Generate chapter (streaming)
+  const handleGenerateStream = useCallback(async () => {
+    if (!currentNovel || isStreaming) return;
+    setIsStreaming(true);
+    setIsChapterGenerating(true);
+    setStreamContent('');
+
+    try {
+      const response = await fetch(`/api/novels/${currentNovel.id}/chapters-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapterNumber: localChapterNum,
+          model: selectedModel || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Stream request failed' }));
+        throw new Error(data.error || '流式生成请求失败');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const jsonStr = trimmed.slice(6);
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.type === 'content') {
+              fullContent += parsed.data;
+              setStreamContent(fullContent);
+            } else if (parsed.type === 'error') {
+              toast.error(parsed.data || '流式生成出错');
+            }
+          } catch {
+            // Skip malformed JSON
+          }
+        }
+      }
+
+      // Stream completed - refresh novel data
+      toast.success(`第${localChapterNum}章 流式生成成功！`);
+      const novelRes = await fetch(`/api/novels/${currentNovel.id}`);
+      if (novelRes.ok) {
+        const updatedNovel = await novelRes.json();
+        setCurrentNovel(updatedNovel);
+        const newIdx = (updatedNovel.chapters || []).findIndex(
+          (c: { number: number }) => c.number === localChapterNum
+        );
+        if (newIdx >= 0) {
+          setCurrentChapterIndex(newIdx);
+          setContentKey((k) => k + 1);
+        }
+      }
+      setGenerateDialogOpen(false);
+    } catch (error) {
+      console.error('Stream generate error:', error);
+      toast.error(error instanceof Error ? error.message : '流式章节生成失败');
+    } finally {
+      setIsStreaming(false);
+      setIsChapterGenerating(false);
+      setStreamContent('');
+    }
+  }, [currentNovel, localChapterNum, selectedModel, isStreaming, setIsChapterGenerating, setCurrentNovel]);
+
+  // Auto-scroll stream content
+  useEffect(() => {
+    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [streamContent]);
 
   // Navigation
   const goToPrevChapter = useCallback(() => {
@@ -439,7 +553,13 @@ export function ReaderView() {
           chapterNumber={localChapterNum}
           onChapterNumberChange={setLocalChapterNum}
           onGenerate={handleGenerate}
+          onGenerateStream={handleGenerateStream}
           isGenerating={isChapterGenerating}
+          isStreaming={isStreaming}
+          streamContent={streamContent}
+          streamMode={streamMode}
+          onStreamModeChange={setStreamMode}
+          streamEndRef={streamEndRef}
         />
       </div>
     );
@@ -475,7 +595,14 @@ export function ReaderView() {
                 <SelectContent className="max-h-[240px]">
                   {chapters.map((ch) => (
                     <SelectItem key={ch.number} value={String(ch.number)}>
-                      第{ch.number}章 {ch.title.replace(`第${ch.number}章`, '').trim()}
+                      <span className="flex items-center gap-2">
+                        <span>第{ch.number}章 {ch.title.replace(`第${ch.number}章`, '').trim()}</span>
+                        {ch.wordCount > 0 && (
+                          <span className="text-[10px] text-muted-foreground/60">
+                            ({ch.wordCount.toLocaleString()}字)
+                          </span>
+                        )}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -619,8 +746,15 @@ export function ReaderView() {
       </div>
 
       {/* Reading Area */}
-      <div className="flex-1 bg-stone-50/50 dark:bg-stone-950/50">
-        <div className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16">
+      <div className="flex-1 bg-stone-50/50 dark:bg-stone-950/50 relative">
+        {/* Scroll Progress Bar */}
+        <div className="sticky top-0 z-10 h-[2px] w-full bg-transparent">
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 transition-[width] duration-150 ease-out"
+            style={{ width: `${scrollProgress}%` }}
+          />
+        </div>
+        <div ref={readingAreaRef} className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)]">
           {currentChapter ? (
             <article key={contentKey} className="animate-in fade-in duration-300">
               {/* Chapter Header */}
@@ -769,7 +903,13 @@ export function ReaderView() {
         chapterNumber={localChapterNum}
         onChapterNumberChange={setLocalChapterNum}
         onGenerate={handleGenerate}
+        onGenerateStream={handleGenerateStream}
         isGenerating={isChapterGenerating}
+        isStreaming={isStreaming}
+        streamContent={streamContent}
+        streamMode={streamMode}
+        onStreamModeChange={setStreamMode}
+        streamEndRef={streamEndRef}
       />
     </div>
   );
@@ -782,7 +922,13 @@ interface GenerateChapterDialogProps {
   chapterNumber: number;
   onChapterNumberChange: (num: number) => void;
   onGenerate: () => void;
+  onGenerateStream: () => void;
   isGenerating: boolean;
+  isStreaming: boolean;
+  streamContent: string;
+  streamMode: boolean;
+  onStreamModeChange: (mode: boolean) => void;
+  streamEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 function GenerateChapterDialog({
@@ -791,12 +937,21 @@ function GenerateChapterDialog({
   chapterNumber,
   onChapterNumberChange,
   onGenerate,
+  onGenerateStream,
   isGenerating,
+  isStreaming,
+  streamContent,
+  streamMode,
+  onStreamModeChange,
+  streamEndRef,
 }: GenerateChapterDialogProps) {
+  const activeGenerating = isStreaming || isGenerating;
+  const streamWordCount = streamContent.replace(/\s/g, '').length;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={(o) => !activeGenerating && onOpenChange(o)}>
+      <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
               <Sparkles className="size-3.5 text-white" />
@@ -808,60 +963,163 @@ function GenerateChapterDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">章节编号</label>
-            <Input
-              type="number"
-              min={1}
-              value={chapterNumber}
-              onChange={(e) =>
-                onChapterNumberChange(Math.max(1, parseInt(e.target.value) || 1))
-              }
-              className="h-10"
-            />
-            <p className="text-xs text-muted-foreground">
-              输入要生成的章节编号。如该章节已有内容将被覆盖。
-            </p>
-          </div>
-
-          {isGenerating && (
-            <div className="flex items-center justify-center gap-3 py-4 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-700/20">
-              <Loader2 className="size-5 text-amber-500 animate-spin" />
-              <div className="text-sm">
-                <p className="font-medium text-amber-700 dark:text-amber-400">
-                  AI 正在创作中...
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  预计需要 30-60 秒，请勿关闭页面
-                </p>
-              </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="space-y-4 py-2">
+            {/* Chapter Number Input */}
+            <div className="space-y-2">
+              <Label className="text-sm">章节编号</Label>
+              <Input
+                type="number"
+                min={1}
+                value={chapterNumber}
+                onChange={(e) =>
+                  onChapterNumberChange(Math.max(1, parseInt(e.target.value) || 1))
+                }
+                disabled={activeGenerating}
+                className="h-10"
+              />
+              <p className="text-xs text-muted-foreground">
+                输入要生成的章节编号。如该章节已有内容将被覆盖。
+              </p>
             </div>
-          )}
+
+            {/* Streaming Toggle */}
+            {!activeGenerating && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-50 dark:bg-violet-900/20">
+                    <Zap className="size-3.5 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">流式生成</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      实时查看 AI 创作过程
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onStreamModeChange(!streamMode)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    streamMode
+                      ? 'bg-violet-600'
+                      : 'bg-input'
+                  }`}
+                  role="switch"
+                  aria-checked={streamMode}
+                >
+                  <span
+                    className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                      streamMode ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </motion.div>
+            )}
+
+            {/* Non-streaming progress */}
+            {isGenerating && !isStreaming && (
+              <div className="flex items-center justify-center gap-3 py-4 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-700/20">
+                <Loader2 className="size-5 text-amber-500 animate-spin" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                    AI 正在创作中...
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    预计需要 30-60 秒，请勿关闭页面
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Streaming Preview */}
+            {isStreaming && streamContent && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="size-3.5 text-violet-500 animate-spin" />
+                    <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
+                      AI 正在实时创作...
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {streamWordCount.toLocaleString()} 字
+                  </span>
+                </div>
+                <div className="rounded-lg border border-violet-200/50 dark:border-violet-700/30 bg-stone-50/80 dark:bg-stone-900/30 p-4">
+                  <ScrollArea className="h-[320px]">
+                    <div className="font-serif text-sm leading-relaxed text-foreground/85 whitespace-pre-wrap">
+                      {streamContent.split('\n').map((paragraph, idx) => {
+                        const trimmed = paragraph.trim();
+                        if (!trimmed) return <div key={idx} className="h-3" />;
+                        return (
+                          <p key={idx} className="indent-[2em] mb-1">{trimmed}</p>
+                        );
+                      })}
+                      {/* Typing cursor */}
+                      <span className="inline-block w-[2px] h-[1em] bg-violet-500 animate-pulse ml-0.5 align-text-bottom" />
+                      <div ref={streamEndRef} />
+                    </div>
+                  </ScrollArea>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Streaming without content yet */}
+            {isStreaming && !streamContent && (
+              <div className="flex items-center justify-center gap-3 py-4 rounded-lg bg-violet-50/50 dark:bg-violet-900/10 border border-violet-200/50 dark:border-violet-700/20">
+                <Loader2 className="size-5 text-violet-500 animate-spin" />
+                <div className="text-sm">
+                  <p className="font-medium text-violet-700 dark:text-violet-400">
+                    正在连接 AI 模型...
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    即将开始流式输出
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 shrink-0 pt-2 border-t">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={isGenerating}
+            disabled={activeGenerating}
           >
             取消
           </Button>
           <Button
-            onClick={onGenerate}
-            disabled={isGenerating}
+            onClick={streamMode ? onGenerateStream : onGenerate}
+            disabled={activeGenerating}
             className="gap-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700 hover:shadow-md transition-all"
           >
-            {isGenerating ? (
+            {activeGenerating ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" />
-                生成中...
+                {isStreaming ? '生成中...' : '生成中...'}
               </>
             ) : (
               <>
-                <Sparkles className="size-3.5" />
-                开始生成
+                {streamMode ? (
+                  <>
+                    <Zap className="size-3.5" />
+                    流式生成
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" />
+                    开始生成
+                  </>
+                )}
               </>
             )}
           </Button>

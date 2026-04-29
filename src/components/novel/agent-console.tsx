@@ -6,6 +6,7 @@ import { useAppStore, type AgentActivityData } from '@/store/app-store';
 import { AGENTS, getAgent, getSkillsForAgent, getCategoriesForAgent, type AgentRole, type AgentDefinition, type SkillDefinition } from '@/lib/agents';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -224,10 +225,16 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const [selectedSkill, setSelectedSkill] = useState<SkillDefinition | null>(null);
   const [skillDialogParams, setSkillDialogParams] = useState<Record<string, string>>({});
   const [isSending, setIsSending] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   const activityEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const consoleRef = useRef<HTMLDivElement>(null);
+
+  // Track which activity IDs have already been persisted to the DB
+  const persistedActivityIds = useRef<Set<string>>(new Set());
+  // Track whether we've loaded activities from the DB for the current novelId
+  const loadedNovelId = useRef<string | null>(null);
 
   const currentAgentDef = activeAgent ? getAgent(activeAgent) : AGENTS[0];
   const agentColors = getAgentColorClasses(currentAgentDef?.color || 'bg-amber-500');
@@ -242,6 +249,92 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
       activityEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [agentActivities]);
+
+  // Dismiss initial loading skeleton after a short delay or when activities arrive
+  useEffect(() => {
+    if (agentActivities.length > 0) {
+      setIsInitialLoading(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsInitialLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, [agentActivities.length]);
+
+  // Load persisted activities from the database on mount / novelId change
+  useEffect(() => {
+    if (!novelId || loadedNovelId.current === novelId) return;
+    loadedNovelId.current = novelId;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/novels/${novelId}/agent/activities?limit=100`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && Array.isArray(data.activities) && data.activities.length > 0) {
+          // Map DB records → AgentActivityData format (activities are newest-first, reverse for chronological order)
+          const mapped: AgentActivityData[] = data.activities
+            .reverse()
+            .map((a: Record<string, unknown>) => {
+              const agentDef = getAgent(a.agentId as AgentRole);
+              return {
+                id: a.id as string,
+                type: a.type as AgentActivityData['type'],
+                agentId: a.agentId as string,
+                agentName: a.agentName as string,
+                agentAvatar: agentDef?.avatar || '🤖',
+                content: (a.content as string) || '',
+                skillName: (a.skillName as string) || undefined,
+                skillDescription: (a.skillDescription as string) || undefined,
+                status: (a.status as string) || undefined,
+                timestamp: a.timestamp
+                  ? new Date(a.timestamp as string).getTime()
+                  : Date.now(),
+              };
+            });
+          // Mark all loaded IDs as persisted
+          for (const a of mapped) {
+            persistedActivityIds.current.add(a.id);
+          }
+          setAgentActivities(mapped);
+        }
+      } catch (err) {
+        console.error('[AgentConsole] Failed to load persisted activities:', err);
+      }
+    })();
+  }, [novelId, setAgentActivities]);
+
+  // Persist new local activities to the database
+  useEffect(() => {
+    if (!novelId) return;
+
+    for (const activity of agentActivities) {
+      if (persistedActivityIds.current.has(activity.id)) continue;
+      // Mark as persisted immediately to avoid double-POST
+      persistedActivityIds.current.add(activity.id);
+
+      // Skip ephemeral thinking activities — they are UI-only and get removed quickly
+      if (activity.type === 'thinking') continue;
+
+      // Fire-and-forget POST (no await to avoid blocking UI)
+      fetch(`/api/novels/${novelId}/agent/activities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: activity.agentId,
+          agentName: activity.agentName,
+          type: activity.type,
+          content: activity.content || '',
+          skillName: activity.skillName || null,
+          skillDescription: activity.skillDescription || null,
+          status: activity.status || null,
+        }),
+      }).catch((err) => {
+        console.error('[AgentConsole] Failed to persist activity:', err);
+        // Remove from persisted set so it can be retried on next render if desired
+        // persistedActivityIds.current.delete(activity.id);
+      });
+    }
+  }, [agentActivities, novelId]);
 
   // Generate unique ID
   const generateId = useCallback(() => {
@@ -526,8 +619,38 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
         )}
         <ScrollArea className="h-full">
           <div className="px-3 sm:px-4 py-3 space-y-2 max-w-4xl mx-auto">
+            {/* Initial loading skeleton */}
+            {isInitialLoading && agentActivities.length === 0 && (
+              <div className="space-y-3 py-4">
+                {/* Skeleton agent message 1 */}
+                <div className="flex items-start gap-2.5">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-16 w-[80%] rounded-xl" />
+                  </div>
+                </div>
+                {/* Skeleton agent message 2 */}
+                <div className="flex items-start gap-2.5">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-12 w-[65%] rounded-xl" />
+                  </div>
+                </div>
+                {/* Skeleton agent message 3 */}
+                <div className="flex items-start gap-2.5">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-20 w-[75%] rounded-xl" />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Empty state */}
-            {agentActivities.length === 0 && (
+            {!isInitialLoading && agentActivities.length === 0 && (
               <EmptyState
                 currentAgent={currentAgentDef}
                 agentColors={agentColors}
@@ -1146,6 +1269,7 @@ const MessageBubbleWithCopy = memo(function MessageBubbleWithCopy({
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
+      toast.success('已复制到剪贴板');
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback for older browsers
@@ -1156,6 +1280,7 @@ const MessageBubbleWithCopy = memo(function MessageBubbleWithCopy({
       document.execCommand('copy');
       document.body.removeChild(textarea);
       setCopied(true);
+      toast.success('已复制到剪贴板');
       setTimeout(() => setCopied(false), 2000);
     }
   }, [content]);

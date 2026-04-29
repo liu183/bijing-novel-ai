@@ -80,6 +80,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
 
 // Icon mapping
 const iconMap: Record<string, React.ElementType> = {
@@ -158,6 +159,7 @@ export function WorkspaceView() {
   const [mobileTab, setMobileTab] = useState<'steps' | 'content' | 'chat'>('content');
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -585,6 +587,7 @@ export function WorkspaceView() {
                   onGenerateStep={handleGenerateStep}
                   onGenerateChapter={handleGenerateChapter}
                   isChapterGenerating={isChapterGenerating}
+                  onBatchGenerate={() => setBatchDialogOpen(true)}
                   onClose={() => setLeftCollapsed(true)}
                 />
               </ResizablePanel>
@@ -687,6 +690,7 @@ export function WorkspaceView() {
                   onGenerateStep={handleGenerateStep}
                   onGenerateChapter={handleGenerateChapter}
                   isChapterGenerating={isChapterGenerating}
+                  onBatchGenerate={() => setBatchDialogOpen(true)}
                 />
               </motion.div>
             ) : mobileTab === 'content' ? (
@@ -780,6 +784,9 @@ export function WorkspaceView() {
         </div>
       </div>
 
+      {/* Batch Chapter Dialog */}
+      <BatchChapterDialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen} />
+
       {/* Discard Changes Confirmation Dialog */}
       <AlertDialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
         <AlertDialogContent>
@@ -812,6 +819,7 @@ function StepSidebar({
   onGenerateStep,
   onGenerateChapter,
   isChapterGenerating,
+  onBatchGenerate,
   onClose,
 }: {
   currentNovel: { title: string; genre: string; chapters?: { number: number }[] };
@@ -821,6 +829,7 @@ function StepSidebar({
   onGenerateStep: (step: number) => void;
   onGenerateChapter: () => void;
   isChapterGenerating: boolean;
+  onBatchGenerate?: () => void;
   onClose?: () => void;
 }) {
   const getStepData = (stepNumber: number) =>
@@ -925,8 +934,8 @@ function StepSidebar({
         </div>
       </ScrollArea>
 
-      {/* Generate Chapter Button */}
-      <div className="px-3 py-3 border-t shrink-0">
+      {/* Generate Chapter Buttons */}
+      <div className="px-3 py-3 border-t shrink-0 space-y-2">
         <Button
           onClick={onGenerateChapter}
           disabled={isChapterGenerating}
@@ -945,6 +954,17 @@ function StepSidebar({
             </>
           )}
         </Button>
+        {onBatchGenerate && (
+          <Button
+            onClick={onBatchGenerate}
+            disabled={isChapterGenerating}
+            variant="outline"
+            className="w-full gap-2 text-xs h-8 border-violet-200 dark:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-violet-700 dark:text-violet-400"
+          >
+            <Layers className="size-3.5" />
+            批量生成章节
+          </Button>
+        )}
       </div>
     </div>
   );

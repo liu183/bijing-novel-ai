@@ -53,7 +53,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { exportNovelToDocx } from '@/lib/export-docx';
-import { exportNovelToPdf } from '@/lib/export-pdf';
+import { exportNovelToDocxFormatted } from '@/lib/export-docx-formatted';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
@@ -678,9 +678,9 @@ function NovelCard({
     }
   };
 
-  const handleExportPdf = async (e: React.MouseEvent) => {
+  const handleExportDocxFormatted = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setExporting('pdf');
+    setExporting('docx-formatted');
     try {
       const res = await fetch(`/api/novels/${novel.id}`);
       if (!res.ok) {
@@ -688,8 +688,8 @@ function NovelCard({
         return;
       }
       const data = await res.json();
-      await exportNovelToPdf(data, novel);
-      toast.success('PDF 导出成功');
+      await exportNovelToDocxFormatted(data, novel);
+      toast.success('DOCX（精排版）导出成功');
     } finally {
       setExporting(null);
     }
@@ -792,9 +792,9 @@ function NovelCard({
                 <FileType2 className="size-4" />
                 导出 DOCX
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdf}>
+              <DropdownMenuItem onClick={handleExportDocxFormatted}>
                 <FileType className="size-4" />
-                导出 PDF
+                导出 DOCX（精排版）
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

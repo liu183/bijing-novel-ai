@@ -232,7 +232,9 @@
   .animate-shimmer,
   .animate-breathe,
   .animate-avatar-glow,
-  .animate-gradient {
+  .animate-gradient,
+  .animate-glow,
+  .animate-count-up {
     animation: none !important;
   }
   main {
@@ -247,6 +249,41 @@
 .card-hover-lift:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+/* Subtle glow animation for focused inputs */
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+}
+.animate-glow { animation: glow 2s ease-in-out infinite; }
+
+/* Thin scrollbar for Firefox */
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgba(155,155,155,0.3) transparent; }
+
+/* Smooth number counter animation (CSS only) */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-count-up { animation: count-up 0.3s ease-out; }
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card glass effect */
+.card-glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.dark .card-glass {
+  background: rgba(24, 24, 27, 0.7);
 }
 
 /* Glassmorphism utility */
