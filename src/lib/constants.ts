@@ -1,6 +1,6 @@
-export const GENRES = ['都市脑洞', '玄幻奇幻', '仙侠武侠', '科幻末世', '古代言情', '现代言情', '悬疑推理', '历史军事', '游戏竞技', '灵异恐怖', '校园青春', '其他'] as const;
+export const GENRES = ['都市脑洞', '玄幻奇幻', '玄幻脑洞', '仙侠武侠', '科幻末世', '科幻', '末世', '古代言情', '现代言情', '言情', '悬疑推理', '悬疑脑洞', '历史军事', '游戏竞技', '灵异恐怖', '校园青春', '年代重生', '其他'] as const;
 
-export const STYLES = ['爽文', '虐文', '甜宠', '搞笑', '正剧', '文艺', '其他'] as const;
+export const STYLES = ['爽文', '虐文', '甜宠', '搞笑', '正剧', '严肃', '文艺', '温馨', '黑暗', '其他'] as const;
 
 export const TOTAL_STEPS = 12;
 
@@ -24,6 +24,13 @@ export const genreColors: Record<string, string> = {
   '言情': 'from-pink-500 to-rose-500',
   '其他': 'from-zinc-500 to-stone-500',
   '未分类': 'from-zinc-500 to-stone-500',
+  '玄幻奇幻': 'from-purple-500 to-violet-500',
+  '科幻末世': 'from-cyan-500 to-blue-500',
+  '古代言情': 'from-pink-500 to-rose-500',
+  '现代言情': 'from-pink-500 to-rose-500',
+  '游戏竞技': 'from-green-500 to-emerald-500',
+  '灵异恐怖': 'from-gray-700 to-gray-900',
+  '校园青春': 'from-sky-400 to-blue-400',
 };
 
 /** Hex color map for chart rendering (Recharts Cell fill) */
@@ -46,4 +53,11 @@ export const genreChartColors: Record<string, string> = {
   '言情': '#ec4899',
   '其他': '#6b7280',
   '未分类': '#6b7280',
+  '玄幻奇幻': '#a855f7',
+  '科幻末世': '#06b6d4',
+  '古代言情': '#ec4899',
+  '现代言情': '#f472b6',
+  '游戏竞技': '#22c55e',
+  '灵异恐怖': '#374151',
+  '校园青春': '#38bdf8',
 };

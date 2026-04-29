@@ -15,7 +15,11 @@ export interface SSEMessage {
  * Use with `for await (const msg of streamSSE(response)) { ... }`
  */
 export async function* streamSSE(response: Response): AsyncGenerator<SSEMessage> {
-  const reader = response.body!.getReader();
+  if (!response.body) {
+    yield { type: 'error', data: 'Response has no body' };
+    return;
+  }
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 

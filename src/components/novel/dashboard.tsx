@@ -69,6 +69,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { exportNovelToDocx } from '@/lib/export-docx';
 import { exportNovelToDocxFormatted } from '@/lib/export-docx-formatted';
+import { addExportHistory } from '@/lib/export-utils';
 import { TOTAL_STEPS, genreColors } from '@/lib/constants';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -157,6 +158,7 @@ export function DashboardView() {
   const setCurrentNovel = useAppStore((s) => s.setCurrentNovel);
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  const setSelectedTemplate = useAppStore((s) => s.setSelectedTemplate);
   const setLastOpenedNovelId = useAppStore((s) => s.setLastOpenedNovelId);
   const lastOpenedNovelId = useAppStore((s) => s.lastOpenedNovelId);
   const [loading, setLoading] = useState(true);
@@ -245,11 +247,7 @@ export function DashboardView() {
       const data = await res.json();
       await exportNovelToTxt(data, novel);
       toast.success('TXT 导出成功');
-      try {
-        const exportHistory = JSON.parse(localStorage.getItem('export-history') || '[]');
-        exportHistory.unshift({ novelId: novel.id, novelTitle: novel.title, format: 'txt', timestamp: Date.now() });
-        localStorage.setItem('export-history', JSON.stringify(exportHistory.slice(0, 50)));
-      } catch { /* ignore */ }
+      addExportHistory(novel.id, novel.title, 'txt');
     } catch {
       toast.error('导出失败');
     }
@@ -265,11 +263,7 @@ export function DashboardView() {
       const data = await res.json();
       await exportNovelToDocx(data, novel);
       toast.success('DOCX 导出成功');
-      try {
-        const exportHistory = JSON.parse(localStorage.getItem('export-history') || '[]');
-        exportHistory.unshift({ novelId: novel.id, novelTitle: novel.title, format: 'docx', timestamp: Date.now() });
-        localStorage.setItem('export-history', JSON.stringify(exportHistory.slice(0, 50)));
-      } catch { /* ignore */ }
+      addExportHistory(novel.id, novel.title, 'docx');
     } catch {
       toast.error('导出失败');
     }
@@ -384,13 +378,13 @@ export function DashboardView() {
               <Button
                 onClick={() => setCreateDialogOpen(true)}
                 size="lg"
-                className="relative gap-2 overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 hover:shadow-xl hover:shadow-amber-500/30 transition-all"
+                className="relative gap-2 overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 hover:shadow-xl hover:shadow-amber-500/30 transition-all focus-ring-visible"
               >
                 <Plus className="size-4 relative z-10" />
                 开始创作
                 <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" />
               </Button>
-              <Button variant="outline" size="lg" className="gap-2" onClick={() => {
+              <Button variant="outline" size="lg" className="gap-2 focus-ring-visible" onClick={() => {
                 const el = document.getElementById('novels-section');
                 el?.scrollIntoView({ behavior: 'smooth' });
               }}>
@@ -426,7 +420,7 @@ export function DashboardView() {
                     <Skeleton className="h-6 w-12 mt-0.5" />
                   ) : (
                     <div className="animate-count-up">
-                      <p className="text-xl font-bold tracking-tight">{stat.value}</p>
+                      <p className="text-xl font-bold tracking-tight number-glow">{stat.value}</p>
                       {stat.secondary && (
                         <p className="text-[10px] text-muted-foreground mt-0.5">{stat.secondary}</p>
                       )}
@@ -456,7 +450,7 @@ export function DashboardView() {
             onClick={() => setCreateDialogOpen(true)}
             variant="outline"
             size="sm"
-            className="gap-1.5 hidden sm:flex"
+            className="gap-1.5 hidden sm:flex focus-ring-visible"
           >
             <Plus className="size-4" />
             新建
@@ -601,6 +595,7 @@ export function DashboardView() {
                   <button
                     key={template}
                     onClick={() => {
+                      setSelectedTemplate(template);
                       setCreateDialogOpen(true);
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border/60 text-muted-foreground hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-300 dark:hover:border-amber-700 transition-all"
@@ -637,7 +632,7 @@ export function DashboardView() {
 
         {/* Novel Cards Grid */}
         {!loading && sortedNovels.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 stagger-children">
             {sortedNovels.map((novel) => (
               <NovelCard
                 key={novel.id}
@@ -687,7 +682,7 @@ export function DashboardView() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg hover:border-amber-300/50 dark:hover:border-amber-700/30 transition-all duration-300 cursor-default overflow-hidden"
+              className="group relative rounded-xl border border-border/60 bg-card p-5 glass-card-hover cursor-default overflow-hidden"
             >
               {/* Decorative gradient line on top */}
               <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
@@ -722,7 +717,7 @@ export function DashboardView() {
               <span className="text-border">|</span>
               <span>Powered by GLM &amp; NVIDIA</span>
               <span className="text-border">|</span>
-              <span>&copy; 2026 笔境 AI</span>
+              <span>&copy; {new Date().getFullYear()} 笔境 AI</span>
             </div>
           </div>
         </div>
@@ -797,11 +792,7 @@ const NovelCard = memo(function NovelCard({
       const data = await res.json();
       await exportNovelToDocxFormatted(data, novel);
       toast.success('DOCX（精排版）导出成功');
-      try {
-        const exportHistory = JSON.parse(localStorage.getItem('export-history') || '[]');
-        exportHistory.unshift({ novelId: novel.id, novelTitle: novel.title, format: 'docx-formatted', timestamp: Date.now() });
-        localStorage.setItem('export-history', JSON.stringify(exportHistory.slice(0, 50)));
-      } catch { /* ignore */ }
+      addExportHistory(novel.id, novel.title, 'docx-formatted');
     } finally {
       setExporting(null);
     }

@@ -102,6 +102,8 @@ interface AppState {
   // Create novel dialog
   createDialogOpen: boolean;
   setCreateDialogOpen: (open: boolean) => void;
+  selectedTemplate: string | null;
+  setSelectedTemplate: (templateId: string | null) => void;
 
   // Step generation dialog
   generateDialogOpen: boolean;
@@ -187,6 +189,8 @@ export const useAppStore = create<AppState>()(
       // Create novel dialog
       createDialogOpen: false,
       setCreateDialogOpen: (open) => set({ createDialogOpen: open }),
+      selectedTemplate: null,
+      setSelectedTemplate: (templateId) => set({ selectedTemplate: templateId }),
 
       // Step generation dialog
       generateDialogOpen: false,

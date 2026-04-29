@@ -62,33 +62,23 @@ function buildExcerpt(content: string, keyword: string): string {
   if (!content) return '';
   const lower = content.toLowerCase();
   const lowerKeyword = keyword.toLowerCase();
-  const index = lower.indexOf(lowerKeyword);
+  const matchIndex = lower.indexOf(lowerKeyword);
 
-  if (index === -1) return content.slice(0, 100);
+  if (matchIndex === -1) return content.slice(0, 100);
 
-  // Calculate excerpt window around match
-  const contextRadius = 50;
-  let start = Math.max(0, index - contextRadius);
-  let end = Math.min(content.length, index + keyword.length + contextRadius);
+  const matchLength = keyword.length;
+  const contextLength = 50;
 
-  // Try to break at whitespace boundaries
-  if (start > 0) {
-    const spaceBefore = content.indexOf(' ', start);
-    if (spaceBefore !== -1 && spaceBefore < start + 20) start = spaceBefore + 1;
-  }
-  if (end < content.length) {
-    const spaceAfter = content.lastIndexOf(' ', end);
-    if (spaceAfter !== -1 && spaceAfter > end - 20) end = spaceAfter;
-  }
+  // For CJK text, use character index directly without space-boundary adjustment
+  const start = Math.max(0, matchIndex - contextLength);
+  const end = Math.min(content.length, matchIndex + matchLength + contextLength);
 
-  let excerpt = '';
-  if (start > 0) excerpt += '...';
-  excerpt += content.slice(start, end);
-  if (end < content.length) excerpt += '...';
+  let excerpt = (start > 0 ? '...' : '') + content.slice(start, end) + (end < content.length ? '...' : '');
 
-  // Highlight the keyword with <mark> tags
-  const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  excerpt = excerpt.replace(regex, '<mark>$1</mark>');
+  // Highlight the match within the excerpt
+  const localStart = matchIndex - start;
+  const localEnd = localStart + matchLength;
+  excerpt = excerpt.slice(0, localStart) + '<mark>' + excerpt.slice(localStart, localEnd) + '</mark>' + excerpt.slice(localEnd);
 
   return excerpt;
 }

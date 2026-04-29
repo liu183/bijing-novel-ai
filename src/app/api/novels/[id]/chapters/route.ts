@@ -52,6 +52,17 @@ export async function POST(
       return NextResponse.json({ error: '请先完成Step 2（一页提要）才能生成章节' }, { status: 400 });
     }
 
+    // Fetch the last 3 completed chapters for continuity context
+    const existingChapters = await db.chapter.findMany({
+      where: { novelId: id, number: { lt: chapterNumber }, status: 'completed' },
+      orderBy: { number: 'desc' },
+      take: 3,
+    });
+
+    const chaptersContext = existingChapters.length > 0
+      ? `\n已完成的章节内容摘要（供续写参考）：\n${existingChapters.map((ch) => `第${ch.number}章「${ch.title}」：${ch.content?.slice(0, 500) || '（空）'}...`).join('\n')}`
+      : '';
+
     // Update or create chapter
     await db.chapter.upsert({
       where: { novelId_number: { novelId: id, number: chapterNumber } },
@@ -74,6 +85,7 @@ ${scenes ? `## 场景大纲\n${scenes}` : ''}
 ${setpieces ? `## 关键场面\n${setpieces}` : ''}
 ${dialogue ? `## 对白参考\n${dialogue}` : ''}
 ${pacing ? `## 节奏参考\n${pacing}` : ''}
+${chaptersContext}
 
 ## 创作要求
 - 章节字数：3000-5000字

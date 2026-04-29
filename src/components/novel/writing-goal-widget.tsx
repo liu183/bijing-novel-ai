@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/app-store';
 import { Target } from 'lucide-react';
 
@@ -8,34 +8,37 @@ export function WritingGoalWidget() {
   const dailyGoal = useAppStore((s) => s.dailyGoal);
   const setDailyGoal = useAppStore((s) => s.setDailyGoal);
   const currentNovel = useAppStore((s) => s.currentNovel);
-  const [todayWords, setTodayWords] = useState(0);
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(dailyGoal.toString());
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    try {
-      const log = JSON.parse(localStorage.getItem(`writing-log-${today}`) || '{"words":0}');
-      setTodayWords(log.words || 0);
-    } catch {
-      // ignore
-    }
-  }, [currentNovel]);
+  const today = new Date().toDateString();
 
-  // Listen for custom event when words are written
-  useEffect(() => {
-    const handler = () => {
-      const today = new Date().toISOString().split('T')[0];
-      try {
-        const log = JSON.parse(localStorage.getItem(`writing-log-${today}`) || '{"words":0}');
-        setTodayWords(log.words || 0);
-      } catch {
-        // ignore
-      }
-    };
-    window.addEventListener('writing-log-updated', handler);
-    return () => window.removeEventListener('writing-log-updated', handler);
-  }, []);
+  // Compute today's words from actual chapter data
+  const todayWords = useMemo(() => {
+    if (!currentNovel?.chapters) return 0;
+    return currentNovel.chapters
+      .filter(ch => new Date(ch.createdAt).toDateString() === today)
+      .reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
+  }, [currentNovel?.chapters, today]);
+
+  // Compute weekly progress for chart (last 7 days)
+  const weeklyData = useMemo(() => {
+    if (!currentNovel?.chapters) return [];
+    const days: { label: string; words: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toDateString();
+      const dayLabel = i === 0 ? '今天' : i === 1 ? '昨天' : `${date.getMonth() + 1}/${date.getDate()}`;
+      const dayWords = currentNovel.chapters
+        .filter(ch => new Date(ch.createdAt).toDateString() === dateStr)
+        .reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
+      days.push({ label: dayLabel, words: dayWords });
+    }
+    return days;
+  }, [currentNovel?.chapters]);
+
+  const maxWeekly = Math.max(...weeklyData.map(d => d.words), dailyGoal, 1);
 
   const progress = Math.min(todayWords / dailyGoal, 1);
   const circumference = 2 * Math.PI * 36;
@@ -72,7 +75,7 @@ export function WritingGoalWidget() {
               onClick={() => { setEditing(true); setInputValue(dailyGoal.toString()); }}
               className="text-center group"
             >
-              <span className="text-sm font-bold" style={{ color }}>{todayWords.toLocaleString()}</span>
+              <span className="text-sm font-bold number-glow" style={{ color }}>{todayWords.toLocaleString()}</span>
               <span className="text-[10px] text-muted-foreground block">/ {dailyGoal.toLocaleString()}</span>
             </button>
           )}
@@ -80,6 +83,22 @@ export function WritingGoalWidget() {
       </div>
       {progress >= 1 && (
         <p className="text-[10px] text-emerald-500 font-medium">今日目标达成!</p>
+      )}
+      {/* Mini weekly chart */}
+      {weeklyData.length > 0 && (
+        <div className="flex items-end gap-[2px] h-5 mt-1">
+          {weeklyData.map((day, i) => (
+            <div
+              key={i}
+              className="w-[6px] rounded-sm transition-all duration-300"
+              style={{
+                height: `${Math.max(day.words / maxWeekly * 100, 4)}%`,
+                backgroundColor: i === weeklyData.length - 1 ? color : 'rgba(245, 158, 11, 0.25)',
+              }}
+              title={`${day.label}: ${day.words}字`}
+            />
+          ))}
+        </div>
       )}
       <button
         onClick={() => { setEditing(true); setInputValue(dailyGoal.toString()); }}

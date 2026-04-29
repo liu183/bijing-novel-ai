@@ -74,13 +74,18 @@ import {
 } from '@/components/ui/popover';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
-import { notify } from '@/components/ui/notifications';
+// notify migrated to sonner toast
 import { motion, AnimatePresence } from 'framer-motion';
 import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
 import { WritingGoalWidget } from '@/components/novel/writing-goal-widget';
 import { streamSSE } from '@/lib/sse-parser';
 import { Input } from '@/components/ui/input';
 import { fireConfetti } from '@/lib/confetti';
+
+// Sanitize excerpt HTML: strip all tags EXCEPT <mark> to prevent XSS
+function sanitizeExcerpt(html: string): string {
+  return html.replace(/<(?!\/?mark)[^>]*>/gi, '');
+}
 
 // Icon mapping
 const iconMap: Record<string, React.ElementType> = {
@@ -319,7 +324,6 @@ export function WorkspaceView() {
         }
         setEditing(false);
         toast.success('内容已保存');
-        notify('success', '自动保存成功');
       } else {
         toast.error('保存失败');
       }
@@ -412,7 +416,6 @@ export function WorkspaceView() {
         throw new Error(data.error || '生成失败');
       }
       toast.success(`第${chapterNumber}章生成完成`);
-      notify('success', '步骤生成完成', `第${chapterNumber}步已完成`);
       // Refresh novel
       const novelRes = await fetch(`/api/novels/${currentNovel.id}`);
       if (novelRes.ok) {
@@ -719,7 +722,7 @@ export function WorkspaceView() {
                   <p className="text-sm font-medium truncate">{result.title}</p>
                   <p
                     className="text-xs text-muted-foreground mt-0.5 line-clamp-2 [&_mark]:bg-amber-200 dark:[&_mark]:bg-amber-700/40 [&_mark]:rounded px-0.5"
-                    dangerouslySetInnerHTML={{ __html: result.excerpt }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeExcerpt(result.excerpt) }}
                   />
                 </div>
               </button>
@@ -1094,7 +1097,7 @@ function StepSidebar({
             <p className="text-xs text-muted-foreground mt-0.5">创作进度 {progress}%</p>
           </div>
           {onClose && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 focus-ring-visible" onClick={onClose}>
               <X className="size-3.5" />
             </Button>
           )}

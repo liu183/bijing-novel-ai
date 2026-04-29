@@ -1,12 +1,21 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const page = parseInt(request.nextUrl.searchParams.get('page') || '1');
+    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50');
+    const include = request.nextUrl.searchParams.get('include')?.split(',') || [];
+
     const novels = await db.novel.findMany({
+      skip: (page - 1) * limit,
+      take: limit,
       orderBy: { updatedAt: 'desc' },
       include: {
-        _count: { select: { steps: true, chapters: true } },
+        steps: include.includes('steps') ? { orderBy: { stepNumber: 'asc' } } : undefined,
+        chapters: include.includes('chapters') ? { orderBy: { number: 'asc' } } : undefined,
+        messages: include.includes('messages') ? undefined : false,
+        _count: { select: { steps: true, chapters: true, messages: true } },
       },
     });
     return NextResponse.json(novels);

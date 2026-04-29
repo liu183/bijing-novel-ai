@@ -130,6 +130,8 @@ export function CreateNovelDialog() {
   const setCurrentNovel = useAppStore((s) => s.setCurrentNovel);
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCurrentStep = useAppStore((s) => s.setCurrentStep);
+  const selectedTemplateFromStore = useAppStore((s) => s.selectedTemplate);
+  const clearStoreTemplate = useAppStore((s) => s.setSelectedTemplate);
 
   const [form, setForm] = useState<FormState>({
     title: '',
@@ -148,19 +150,24 @@ export function CreateNovelDialog() {
   const handleOpenChange = useCallback((newOpen: boolean) => {
     setOpen(newOpen);
     if (newOpen) {
+      // Check if a template was selected from the dashboard
+      const templateMatch = selectedTemplateFromStore
+        ? TEMPLATES.find((t) => t.name === selectedTemplateFromStore)
+        : null;
+      setSelectedTemplate(templateMatch ? templateMatch.id : null);
       setForm({
         title: '',
-        genre: '都市脑洞',
-        style: '爽文',
-        targetWords: '50000',
-        description: '',
+        genre: templateMatch ? templateMatch.genre : '都市脑洞',
+        style: templateMatch ? templateMatch.style : '爽文',
+        targetWords: templateMatch ? templateMatch.targetWords : '50000',
+        description: templateMatch ? templateMatch.description : '',
       });
       setErrors({});
       setFormError('');
-      setSelectedTemplate(null);
+      clearStoreTemplate(null);
       setTemplatesExpanded(true);
     }
-  }, [setOpen]);
+  }, [setOpen, selectedTemplateFromStore, clearStoreTemplate]);
 
   const handleSelectTemplate = useCallback((template: NovelTemplate) => {
     setSelectedTemplate(template.id);
@@ -210,12 +217,12 @@ export function CreateNovelDialog() {
         }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || '创建失败');
       }
 
-      const newNovel = await res.json();
+      const newNovel = data;
       toast.success(`「${newNovel.title}」创建成功！`);
 
       // Refresh novels list

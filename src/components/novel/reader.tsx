@@ -69,7 +69,7 @@ import {
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { streamSSE } from '@/lib/sse-parser';
-import { notify } from '@/components/ui/notifications';
+// notify migrated to sonner toast
 
 // ─── Reader Preferences ───
 interface ReaderPrefs {
@@ -527,7 +527,6 @@ export function ReaderView() {
         setCurrentNovel({ ...currentNovel, chapters: updatedChapters });
         setContentKey((k) => k + 1);
         toast.success('章节内容已保存');
-        notify('success', '章节已保存');
         setIsEditingContent(false);
       } else {
         toast.error('保存失败');
@@ -1082,7 +1081,7 @@ export function ReaderView() {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchMove={handleTouchMove}
-          className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)] transition-transform duration-100 ease-out"
+          className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)] transition-transform duration-100 ease-out smooth-scroll"
           style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
         >
           {chapterLoading ? (

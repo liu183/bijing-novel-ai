@@ -111,11 +111,6 @@ export function CommandPalette() {
     }, 100);
   };
 
-  const runAction = (action: () => void) => {
-    action();
-    setOpen(false);
-  };
-
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder="输入命令或搜索..." />

@@ -26,6 +26,7 @@ import { Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { getExportHistory, type ExportHistoryEntry } from '@/lib/export-utils';
 
 
 interface FormState {
@@ -59,24 +60,34 @@ export function EditNovelDialog({
   });
   const [errors, setErrors] = useState<Partial<FormState>>({});
   const [saving, setSaving] = useState(false);
-  const [prevOpen, setPrevOpen] = useState(open);
+  // Populate form when dialog opens or novel changes
+  useEffect(() => {
+    if (open && novel) {
+      setForm({
+        _novelId: novel.id,
+        title: novel.title || '',
+        genre: novel.genre || '',
+        style: novel.style || '',
+        targetWords: String(novel.targetWords || ''),
+        description: novel.description || '',
+      });
+      setErrors({});
+      setSaving(false);
+    }
+  }, [open, novel?.id]);
 
-  // Populate form when novel changes or dialog opens
-  if (open && novel && (!prevOpen || novel.id !== form._novelId)) {
-    setForm({
-      _novelId: novel.id,
-      title: novel.title || '',
-      genre: novel.genre || '',
-      style: novel.style || '',
-      targetWords: String(novel.targetWords || ''),
-      description: novel.description || '',
-    });
-    setErrors({});
-    setSaving(false);
-  }
-  if (open !== prevOpen) {
-    setPrevOpen(open);
-  }
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setForm({
+        title: '',
+        genre: '',
+        style: '',
+        targetWords: '',
+        description: '',
+      });
+    }
+  }, [open]);
 
   const validate = useCallback((): boolean => {
     const newErrors: Partial<FormState> = {};
@@ -136,14 +147,12 @@ export function EditNovelDialog({
 
   useEffect(() => {
     if (!open || !novel) return;
-    try {
-      const all = JSON.parse(localStorage.getItem('export-history') || '[]');
-      const filtered = all
-        .filter((e: { novelId: string }) => e.novelId === novel.id)
-        .slice(0, 3)
-        .map((e: { format: string; timestamp: number }) => ({ format: e.format, timestamp: e.timestamp }));
-      setExportHistory(filtered);
-    } catch { /* ignore */ }
+    const all = getExportHistory();
+    const filtered = all
+      .filter((e: ExportHistoryEntry) => e.novelId === novel.id)
+      .slice(0, 3)
+      .map((e: ExportHistoryEntry) => ({ format: e.format, timestamp: e.timestamp }));
+    setExportHistory(filtered);
   }, [open, novel]);
 
   const formatExportLabel = (format: string) => {

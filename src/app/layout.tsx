@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { NotificationStack } from "@/components/ui/notifications";
+// NotificationStack removed - migrated to sonner toast
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,7 +54,6 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
-          <NotificationStack />
         </ThemeProvider>
       </body>
     </html>
