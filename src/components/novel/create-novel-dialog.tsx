@@ -41,6 +41,7 @@ export function CreateNovelDialog() {
   const setNovels = useAppStore((s) => s.setNovels);
   const setCurrentNovel = useAppStore((s) => s.setCurrentNovel);
   const setViewMode = useAppStore((s) => s.setViewMode);
+  const setCurrentStep = useAppStore((s) => s.setCurrentStep);
 
   const [form, setForm] = useState<FormState>({
     title: '',
@@ -121,6 +122,7 @@ export function CreateNovelDialog() {
       // Navigate to workspace
       setCurrentNovel(newNovel);
       setViewMode('workspace');
+      setCurrentStep(1);
       setOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '创建失败，请重试');

@@ -384,6 +384,30 @@ export function WorkspaceView() {
     toast.success('对话已清空');
   }, [setChatMessages]);
 
+  // Keyboard navigation between steps
+  useEffect(() => {
+    if (!currentNovel) return;
+    const totalSteps = STEPS.length;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't navigate when typing in inputs/textareas
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCurrentStep(currentStep >= totalSteps ? 1 : currentStep + 1);
+        setEditing(false);
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCurrentStep(currentStep <= 1 ? totalSteps : currentStep - 1);
+        setEditing(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentNovel, currentStep, setCurrentStep]);
+
   // Handle chat keydown (Ctrl+Enter to send)
   const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

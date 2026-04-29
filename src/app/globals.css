@@ -148,6 +148,13 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* Gradient animation for hero title */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+.animate-gradient { animation: gradient-shift 4s ease infinite; }
+
 /* Focus ring customization for amber theme */
 *:focus-visible {
   outline: 2px solid rgb(245 158 11);

@@ -214,6 +214,7 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const addAgentActivity = useAppStore((s) => s.addAgentActivity);
   const setAgentActivities = useAppStore((s) => s.setAgentActivities);
   const agentStatus = useAppStore((s) => s.agentStatus);
+  const setAgentStatus = useAppStore((s) => s.setAgentStatus);
   const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [inputText, setInputText] = useState('');
@@ -265,9 +266,15 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
       timestamp: Date.now(),
     });
 
+    // Set agent status to thinking
+    setAgentStatus(currentAgentDef.id, 'thinking');
+
+    // Track the thinking activity ID so we can remove it later
+    const thinkingId = generateId();
+
     // Add thinking activity
     addAgentActivity({
-      id: generateId(),
+      id: thinkingId,
       type: 'thinking',
       agentId: currentAgentDef.id,
       agentName: currentAgentDef.name,
@@ -293,6 +300,12 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
       if (!res.ok) {
         throw new Error(data.error || 'Agent 请求失败');
       }
+
+      // Remove the optimistic thinking bubble and replace with actual response
+      setAgentActivities(useAppStore.getState().agentActivities.filter(a => a.id !== thinkingId));
+
+      // Set agent status to working while processing activities
+      setAgentStatus(currentAgentDef.id, 'working');
 
       // Add activities from the server response
       if (data.activities && Array.isArray(data.activities)) {
@@ -337,7 +350,16 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
           });
         }
       }
+
+      // Set agent status to done
+      setAgentStatus(currentAgentDef.id, 'done');
     } catch (error) {
+      // Remove the optimistic thinking bubble
+      setAgentActivities(useAppStore.getState().agentActivities.filter(a => a.id !== thinkingId));
+
+      // Reset agent status to idle on error
+      setAgentStatus(currentAgentDef.id, 'idle');
+
       // Show error in activity log
       addAgentActivity({
         id: generateId(),
@@ -351,7 +373,7 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
     } finally {
       setIsSending(false);
     }
-  }, [inputText, isSending, currentAgentDef, novelId, addAgentActivity, generateId]);
+  }, [inputText, isSending, currentAgentDef, novelId, addAgentActivity, generateId, setAgentStatus, setAgentActivities]);
 
   // Handle keyboard input
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -19,6 +19,8 @@ import {
   Calendar,
   Clock,
   Pencil,
+  Search,
+  Download,
 } from 'lucide-react';
 import { EditNovelDialog } from './edit-novel-dialog';
 import {
@@ -64,6 +66,8 @@ export function DashboardView() {
   const [loading, setLoading] = useState(true);
   const [editingNovel, setEditingNovel] = useState<NovelData | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGenre, setFilterGenre] = useState<string | null>(null);
 
   const fetchNovels = useCallback(async () => {
     try {
@@ -120,11 +124,86 @@ export function DashboardView() {
     }
   };
 
+  const handleExportNovel = async (novel: NovelData) => {
+    try {
+      const res = await fetch(`/api/novels/${novel.id}`);
+      if (!res.ok) {
+        toast.error('导出失败：无法获取小说数据');
+        return;
+      }
+      const data = await res.json();
+
+      // Format as TXT
+      const sep = '='.repeat(40);
+      const dashSep = '-'.repeat(40);
+      let txt = '';
+      txt += `${sep}\n`;
+      txt += `  ${novel.title}\n`;
+      txt += `${sep}\n`;
+      txt += `题材: ${novel.genre} · 风格: ${novel.style}\n`;
+      txt += `目标字数: ${novel.targetWords}字\n`;
+      txt += `创建时间: ${novel.createdAt}\n`;
+      txt += `${dashSep}\n\n`;
+
+      // Steps section
+      txt += `【创作步骤】\n\n`;
+      if (data.steps && data.steps.length > 0) {
+        data.steps.forEach((step: { stepNumber: number; title: string; content: string }, idx: number) => {
+          txt += `=== 第${idx + 1}步: ${step.title || `步骤${step.stepNumber || idx + 1}`} ===\n`;
+          txt += `${step.content || '(无内容)'}\n\n`;
+        });
+      } else {
+        txt += '(暂无创作步骤)\n\n';
+      }
+
+      // Chapters section
+      txt += `【章节内容】\n\n`;
+      if (data.chapters && data.chapters.length > 0) {
+        data.chapters.forEach((ch: { number: number; title: string; content: string }) => {
+          txt += `--- 第${ch.number}章 ${ch.title} ---\n`;
+          txt += `${ch.content || '(无内容)'}\n\n`;
+        });
+      } else {
+        txt += '(暂无章节内容)\n\n';
+      }
+
+      // Download
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${novel.title}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('导出成功');
+    } catch {
+      toast.error('导出失败');
+    }
+  };
+
+  // Compute unique genres
+  const allGenres = Array.from(new Set(novels.map((n) => n.genre))).filter(Boolean);
+
+  // Compute filtered novels
+  const filteredNovels = novels.filter((n) => {
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch = !query
+      || n.title.toLowerCase().includes(query)
+      || n.genre.toLowerCase().includes(query)
+      || (n.description && n.description.toLowerCase().includes(query));
+    const matchesGenre = !filterGenre || n.genre === filterGenre;
+    return matchesSearch && matchesGenre;
+  });
+
   // Compute stats
   const totalNovels = novels.length;
   const totalSteps = novels.reduce((sum, n) => sum + (n._count?.steps || 0), 0);
   const totalChapters = novels.reduce((sum, n) => sum + (n._count?.chapters || 0), 0);
-  const totalWords = novels.reduce((sum, n) => sum + n.targetWords, 0);
+  const totalActualWords = novels.reduce((sum, n) => sum + (n.chapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0), 0);
+  const totalTargetWords = novels.reduce((sum, n) => sum + n.targetWords, 0);
 
   const stats = [
     {
@@ -152,8 +231,9 @@ export function DashboardView() {
       iconColor: 'text-orange-600 dark:text-orange-400',
     },
     {
-      label: '目标字数',
-      value: totalWords >= 10000 ? `${(totalWords / 10000).toFixed(1)}万` : totalWords,
+      label: '已写字数',
+      value: totalActualWords >= 10000 ? `${(totalActualWords / 10000).toFixed(1)}万` : totalActualWords,
+      secondary: totalTargetWords >= 10000 ? `目标 ${(totalTargetWords / 10000).toFixed(1)}万` : `目标 ${totalTargetWords}`,
       icon: Target,
       color: 'from-rose-500 to-pink-500',
       bgColor: 'bg-rose-50 dark:bg-rose-950/30',
@@ -178,7 +258,7 @@ export function DashboardView() {
               <Sparkles className="size-3.5" />
               AI 驱动的智能创作助手
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl lg:text-5xl">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl animate-gradient bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-clip-text text-transparent bg-[length:200%_auto]">
               笔境 AI — 智能网文创作平台
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base text-gray-600 dark:text-gray-400 sm:text-lg">
@@ -222,7 +302,12 @@ export function DashboardView() {
                   {loading ? (
                     <Skeleton className="h-6 w-12 mt-0.5" />
                   ) : (
-                    <p className="text-xl font-bold tracking-tight">{stat.value}</p>
+                    <div>
+                      <p className="text-xl font-bold tracking-tight">{stat.value}</p>
+                      {stat.secondary && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{stat.secondary}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -233,7 +318,7 @@ export function DashboardView() {
 
       {/* Novel Projects Section */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div id="novels-section" className="flex items-center justify-between mb-6">
+        <div id="novels-section" className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold tracking-tight">我的小说项目</h2>
             <p className="text-sm text-muted-foreground mt-1">管理和查看您的所有小说创作项目</p>
@@ -248,6 +333,52 @@ export function DashboardView() {
             新建
           </Button>
         </div>
+
+        {/* Search & Filter Bar */}
+        {!loading && novels.length > 0 && (
+          <div className="space-y-3 mb-6">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/60" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索小说标题、题材或描述..."
+                className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-background text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50 transition-all"
+              />
+            </div>
+
+            {/* Genre Filter Chips */}
+            {allGenres.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setFilterGenre(null)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                    !filterGenre
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
+                      : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                  }`}
+                >
+                  全部
+                </button>
+                {allGenres.map((genre) => (
+                  <button
+                    key={genre}
+                    onClick={() => setFilterGenre(filterGenre === genre ? null : genre)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                      filterGenre === genre
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
+                        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    }`}
+                  >
+                    {genre}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Loading State */}
         {loading && (
@@ -273,7 +404,7 @@ export function DashboardView() {
           </div>
         )}
 
-        {/* Empty State */}
+        {/* Empty State (no novels at all) */}
         {!loading && novels.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-16 px-4">
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 mb-6">
@@ -293,23 +424,45 @@ export function DashboardView() {
           </div>
         )}
 
+        {/* No filter results */}
+        {!loading && novels.length > 0 && filteredNovels.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-12 px-4">
+            <Search className="size-10 text-muted-foreground/40 mb-4" />
+            <h3 className="text-base font-semibold text-muted-foreground">未找到匹配的小说</h3>
+            <p className="mt-2 max-w-md text-center text-sm text-muted-foreground/70">
+              尝试更换搜索关键词或清除筛选条件
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => {
+                setSearchQuery('');
+                setFilterGenre(null);
+              }}
+            >
+              清除筛选
+            </Button>
+          </div>
+        )}
+
         {/* Novel Cards Grid */}
-        {!loading && novels.length > 0 && (
+        {!loading && filteredNovels.length > 0 && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {novels.map((novel) => (
+            {filteredNovels.map((novel) => (
               <NovelCard
                 key={novel.id}
                 novel={novel}
                 onClick={() => handleNovelClick(novel)}
                 onDelete={() => handleDeleteNovel(novel.id)}
                 onEdit={() => handleEditNovel(novel)}
+                onExport={() => handleExportNovel(novel)}
               />
             ))}
           </div>
         )}
 
         {/* Mobile FAB */}
-        {!loading && novels.length > 0 && (
+        {!loading && filteredNovels.length > 0 && (
           <div className="fixed bottom-6 right-6 sm:hidden z-40">
             <Button
               onClick={() => setCreateDialogOpen(true)}
@@ -338,11 +491,13 @@ function NovelCard({
   onClick,
   onDelete,
   onEdit,
+  onExport,
 }: {
   novel: NovelData;
   onClick: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  onExport: () => void;
 }) {
   const progress = Math.round((novel.currentStep / 12) * 100);
   const status = statusConfig[novel.status] || statusConfig.draft;
@@ -422,6 +577,18 @@ function NovelCard({
         </span>
 
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400"
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport();
+            }}
+          >
+            <Download className="size-3.5" />
+          </Button>
+
           <Button
             variant="ghost"
             size="icon"
