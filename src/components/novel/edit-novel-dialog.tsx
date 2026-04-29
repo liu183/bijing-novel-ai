@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { type NovelData } from '@/store/app-store';
-import { GENRES, STYLES } from '@/lib/constants';
 import {
   Dialog,
   DialogContent,
@@ -13,31 +12,17 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { getExportHistory, type ExportHistoryEntry } from '@/lib/export-utils';
 import { validateNovelForm } from '@/lib/format';
+import { NovelFormFields, type NovelFormState } from './novel-form-fields';
 
 
-interface FormState {
-  _novelId?: string;
-  title: string;
-  genre: string;
-  style: string;
-  targetWords: string;
-  description: string;
-}
+
 
 interface EditNovelDialogProps {
   open: boolean;
@@ -52,14 +37,14 @@ export function EditNovelDialog({
   novel,
   onSave,
 }: EditNovelDialogProps) {
-  const [form, setForm] = useState<FormState>({
+  const [form, setForm] = useState<NovelFormState>({
     title: '',
     genre: '',
     style: '',
     targetWords: '',
     description: '',
   });
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
   // Populate form when dialog opens or novel changes
   useEffect(() => {
@@ -113,12 +98,9 @@ export function EditNovelDialog({
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || '保存失败');
-      }
-
-      const updatedNovel = await res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '保存失败');
+      const updatedNovel = data;
       toast.success(`「${updatedNovel.title}」已保存`);
       onSave(updatedNovel);
       onOpenChange(false);
@@ -194,110 +176,13 @@ export function EditNovelDialog({
             )}
           </div>
 
-          {/* Genre and Style row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-novel-genre" className="text-sm font-medium">
-                题材类型
-              </Label>
-              <Select
-                value={form.genre}
-                onValueChange={(value) => setForm((f) => ({ ...f, genre: value }))}
-              >
-                <SelectTrigger id="edit-novel-genre" className="h-10 w-full">
-                  <SelectValue placeholder="选择题材" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GENRES.map((genre) => (
-                    <SelectItem key={genre} value={genre}>
-                      {genre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-novel-style" className="text-sm font-medium">
-                写作风格
-              </Label>
-              <Select
-                value={form.style}
-                onValueChange={(value) => setForm((f) => ({ ...f, style: value }))}
-              >
-                <SelectTrigger id="edit-novel-style" className="h-10 w-full">
-                  <SelectValue placeholder="选择风格" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STYLES.map((style) => (
-                    <SelectItem key={style} value={style}>
-                      {style}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Target Words */}
-          <div className="space-y-2">
-            <Label htmlFor="edit-novel-words" className="text-sm font-medium">
-              目标字数
-            </Label>
-            <div className="relative">
-              <Input
-                id="edit-novel-words"
-                type="number"
-                placeholder="50000"
-                value={form.targetWords}
-                onChange={(e) => setForm((f) => ({ ...f, targetWords: e.target.value }))}
-                onBlur={() => validate()}
-                className="h-10 pr-10"
-                min={1000}
-                max={5000000}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                字
-              </span>
-            </div>
-            {errors.targetWords && (
-              <p className="text-xs text-destructive">{errors.targetWords}</p>
-            )}
-            <div className="flex gap-2">
-              {[30000, 50000, 100000, 200000].map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, targetWords: String(w) }))}
-                  className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
-                    form.targetWords === String(w)
-                      ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                      : 'border-border text-muted-foreground hover:border-amber-300 hover:text-amber-600 dark:hover:border-amber-700 dark:hover:text-amber-400'
-                  }`}
-                >
-                  {(w / 10000)}万
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="edit-novel-desc" className="text-sm font-medium">
-              简介描述
-            </Label>
-            <Textarea
-              id="edit-novel-desc"
-              placeholder="简单描述您的故事构思"
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              className="min-h-[100px] resize-none"
-              maxLength={500}
-            />
-            <p className="text-xs text-muted-foreground text-right">
-              {form.description.length}/500
-            </p>
-          </div>
+          {/* Shared Form Fields: Genre, Style, Target Words, Description */}
+          <NovelFormFields
+            form={form}
+            setForm={setForm}
+            errors={errors}
+            mode="edit"
+          />
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

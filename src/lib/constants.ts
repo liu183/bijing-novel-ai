@@ -18,19 +18,6 @@ const AVATAR_COLORS = [
   'bg-pink-500',
 ];
 
-const AVATAR_COLORS_DARK = [
-  'bg-amber-600',
-  'bg-blue-600',
-  'bg-emerald-600',
-  'bg-purple-600',
-  'bg-rose-600',
-  'bg-teal-600',
-  'bg-indigo-600',
-  'bg-orange-600',
-  'bg-cyan-600',
-  'bg-pink-600',
-];
-
 export function getAvatarColor(title: string): string {
   if (!title) return AVATAR_COLORS[0];
   // Simple hash: sum of char codes
@@ -73,6 +60,52 @@ export const genreColors: Record<string, string> = {
   '游戏竞技': 'from-green-500 to-emerald-500',
   '灵异恐怖': 'from-gray-700 to-gray-900',
   '校园青春': 'from-sky-400 to-blue-400',
+};
+
+// ---------------------------------------------------------------------------
+// Novel status configuration (used by dashboard.tsx)
+// ---------------------------------------------------------------------------
+
+export type NovelStatus = 'draft' | 'writing' | 'completed' | 'archived';
+
+export const NOVEL_STATUS_CONFIG: Record<NovelStatus, { label: string; className: string; dotColor: string }> = {
+  draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', dotColor: 'bg-gray-400' },
+  writing: { label: '创作中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', dotColor: 'bg-amber-500 animate-pulse' },
+  completed: { label: '已完成', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', dotColor: 'bg-emerald-500' },
+  archived: { label: '已归档', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500', dotColor: 'bg-gray-400 dark:bg-gray-600' },
+};
+
+// ---------------------------------------------------------------------------
+// Agent status configuration (used by agent-console.tsx)
+// ---------------------------------------------------------------------------
+
+export type AgentStatus = 'idle' | 'thinking' | 'working' | 'done';
+
+export const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; dotClass: string; bgColor: string }> = {
+  idle: {
+    label: '待命中',
+    color: 'text-muted-foreground',
+    dotClass: 'bg-muted-foreground/50',
+    bgColor: 'bg-muted/30',
+  },
+  thinking: {
+    label: '思考中',
+    color: 'text-amber-600 dark:text-amber-400',
+    dotClass: 'bg-amber-500',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+  },
+  working: {
+    label: '执行中',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    dotClass: 'bg-emerald-500',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
+  },
+  done: {
+    label: '已完成',
+    color: 'text-sky-600 dark:text-sky-400',
+    dotClass: 'bg-sky-500',
+    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
+  },
 };
 
 /** Hex color map for chart rendering (Recharts Cell fill) */

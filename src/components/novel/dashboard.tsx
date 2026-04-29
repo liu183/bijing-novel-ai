@@ -27,6 +27,7 @@ import {
   Calendar,
   Pencil,
   Search,
+  SearchX,
   Download,
   FileType,
   FileType2,
@@ -70,21 +71,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { format, formatDistanceToNow } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 import { exportNovelToDocx } from '@/lib/export-docx';
 import { exportNovelToDocxFormatted } from '@/lib/export-docx-formatted';
 import { addExportHistory } from '@/lib/export-utils';
-import { TOTAL_STEPS, genreColors, getAvatarColor, getAvatarInitial } from '@/lib/constants';
+import { TOTAL_STEPS, genreColors, getAvatarColor, getAvatarInitial, NOVEL_STATUS_CONFIG } from '@/lib/constants';
+import { formatDateTime, formatRelativeTime } from '@/lib/format';
 
-const statusConfig: Record<NovelData['status'], { label: string; className: string; dotColor: string }> = {
-  draft: { label: '草稿', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', dotColor: 'bg-gray-400' },
-  writing: { label: '创作中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', dotColor: 'bg-amber-500 animate-pulse' },
-  completed: { label: '已完成', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', dotColor: 'bg-emerald-500' },
-  archived: { label: '已归档', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500', dotColor: 'bg-gray-400 dark:bg-gray-600' },
-};
-
-// Word count milestone config
 const milestones: Array<{ threshold: number; label: string; icon: typeof Trophy }> = [
   { threshold: 10000, label: '1万+', icon: Trophy },
   { threshold: 50000, label: '5万+', icon: Award },
@@ -93,30 +85,6 @@ const milestones: Array<{ threshold: number; label: string; icon: typeof Trophy 
   { threshold: 500000, label: '50万+', icon: Crown },
 ];
 
-// Extract helper functions outside the component for stability
-function formatDate(dateStr: string): string {
-  try {
-    return format(new Date(dateStr), 'yyyy-MM-dd', { locale: zhCN });
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatDateTime(dateStr: string): string {
-  try {
-    return format(new Date(dateStr), 'yyyy-MM-dd HH:mm', { locale: zhCN });
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatRelativeTime(dateStr: string): string {
-  try {
-    return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: zhCN });
-  } catch {
-    return formatDate(dateStr);
-  }
-}
 
 
 
@@ -638,11 +606,11 @@ export function DashboardView() {
 
         {/* No filter results */}
         {!loading && novels.length > 0 && filteredNovels.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-12 px-4 animate-list-fade-in">
-            <Search className="size-10 text-muted-foreground/40 mb-4" />
-            <h3 className="text-base font-semibold text-muted-foreground">未找到匹配的小说</h3>
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 py-14 px-4 animate-list-fade-in">
+            <SearchX className="size-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-base font-semibold text-muted-foreground">没有找到匹配的结果</h3>
             <p className="mt-2 max-w-md text-center text-sm text-muted-foreground/70">
-              试试其他关键词
+              试试其他关键词或不同的筛选条件
             </p>
             <Button
               variant="outline"
@@ -810,7 +778,7 @@ const NovelCard = memo(function NovelCard({
   duplicatingId?: string | null;
 }) {
   const progress = Math.round((novel.currentStep / TOTAL_STEPS) * 100);
-  const status = statusConfig[novel.status] || statusConfig.draft;
+  const status = NOVEL_STATUS_CONFIG[novel.status] || NOVEL_STATUS_CONFIG.draft;
   const genreColor = genreColors[novel.genre] || genreColors['未分类'];
   const [exporting, setExporting] = React.useState<string | null>(null);
 
@@ -968,6 +936,11 @@ const NovelCard = memo(function NovelCard({
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
             {novel.style}
           </Badge>
+          {totalWords > 0 && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800 animate-count-up">
+              {totalWords >= 10000 ? `${(totalWords / 10000).toFixed(1)}万字` : `${totalWords.toLocaleString()}字`}
+            </Badge>
+          )}
         </div>
 
         {/* Progress */}

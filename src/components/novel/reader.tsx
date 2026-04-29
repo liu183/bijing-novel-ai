@@ -164,6 +164,14 @@ export function ReaderView() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [chapterLoading, setChapterLoading] = useState(false);
   const streamEndRef = useRef<HTMLDivElement>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+
+  // Abort streaming fetch on unmount
+  useEffect(() => {
+    return () => {
+      streamAbortRef.current?.abort();
+    };
+  }, []);
   const [tocOpen, setTocOpen] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isTouching, setIsTouching] = useState(false);
@@ -329,6 +337,10 @@ export function ReaderView() {
     setIsChapterGenerating(true);
     setStreamContent('');
 
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+
     try {
       const response = await fetch(`/api/novels/${currentNovel.id}/chapters-stream`, {
         method: 'POST',
@@ -337,6 +349,7 @@ export function ReaderView() {
           chapterNumber: localChapterNum,
           model: selectedModel || undefined,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -372,6 +385,7 @@ export function ReaderView() {
       setGenerateDialogOpen(false);
     } catch (error) {
       console.error('Stream generate error:', error);
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       toast.error(error instanceof Error ? error.message : '流式章节生成失败');
     } finally {
       setIsStreaming(false);

@@ -51,6 +51,7 @@ import {
   Keyboard,
   Check,
   Search,
+  SearchX,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -176,7 +177,15 @@ export function WorkspaceView() {
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const originalContentRef = useRef<string>('');
   const handleSaveRef = useRef<() => void>(() => {});
+  const chatAbortRef = useRef<AbortController | null>(null);
   const [autoSaveIndicator, setAutoSaveIndicator] = useState(false);
+
+  // Abort chat streaming fetch on unmount
+  useEffect(() => {
+    return () => {
+      chatAbortRef.current?.abort();
+    };
+  }, []);
 
   // Dirty state: true when editing and content has changed
   const isDirty = editing && editContent !== originalContentRef.current;
@@ -449,6 +458,10 @@ export function WorkspaceView() {
     };
     addChatMessage(assistantMessage);
 
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
+
     try {
       const response = await fetch(`/api/novels/${currentNovel.id}/chat-stream`, {
         method: 'POST',
@@ -457,6 +470,7 @@ export function WorkspaceView() {
           message: userMsg,
           model: selectedModel || undefined,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -479,6 +493,10 @@ export function WorkspaceView() {
       }
     } catch (error) {
       console.error('Chat stream error:', error);
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setIsChatLoading(false);
+        return;
+      }
       // Remove the empty assistant message on error
       const msgs = useAppStore.getState().chatMessages.filter((m) => m.id !== assistantId);
       useAppStore.getState().setChatMessages(msgs);
@@ -698,6 +716,7 @@ export function WorkspaceView() {
             <input
               ref={searchInputRef}
               type="text"
+              aria-label="搜索步骤和章节内容"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -750,8 +769,10 @@ export function WorkspaceView() {
           </div>
         )}
         {searchOpen && !searchLoading && searchQuery.trim() && searchResults.length === 0 && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-[calc(100%-2rem)] max-w-2xl bg-background border rounded-lg shadow-lg z-50 px-4 py-6 text-center">
-            <p className="text-sm text-muted-foreground">未找到匹配内容</p>
+          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-[calc(100%-2rem)] max-w-2xl bg-background border rounded-lg shadow-lg z-50 px-4 py-8 text-center">
+            <SearchX className="size-8 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">没有找到匹配的结果</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">试试其他关键词或缩短搜索内容</p>
           </div>
         )}
       </div>
@@ -786,6 +807,7 @@ export function WorkspaceView() {
                 onClick={() => setLeftCollapsed(false)}
                 className="h-full w-full rounded-none border-r hover:bg-amber-50 dark:hover:bg-amber-950/30"
                 title="展开步骤面板"
+                aria-label="展开步骤面板"
               >
                 <PanelLeftClose className="size-4" />
               </Button>
@@ -846,6 +868,7 @@ export function WorkspaceView() {
                   onClick={() => setRightCollapsed(false)}
                   className="h-full w-full rounded-none border-l hover:bg-amber-50 dark:hover:bg-amber-950/30"
                   title="展开对话面板"
+                  aria-label="展开对话面板"
                 >
                   <PanelRightClose className="size-4" />
                 </Button>
@@ -971,6 +994,7 @@ export function WorkspaceView() {
             </TabsTrigger>
             <button
               onClick={() => setViewMode('reader')}
+              aria-label="切换到阅读器视图"
               className="flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors text-muted-foreground"
             >
               <BookOpen className="size-4" />

@@ -171,8 +171,13 @@
 @keyframes float-3 { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-25px); } }
 @keyframes float-4 { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(8deg); } }
 
-/* Shimmer sweep for CTA button */
+/* Shimmer sweep for CTA button and overlays (also used as shimmer-slide alias) */
 @keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+/* shimmer-slide is an alias kept for backward compat with inline style refs */
+@keyframes shimmer-slide {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
@@ -225,11 +230,6 @@
   0% { transform: scale(0.95); opacity: 0.7; }
   50% { transform: scale(1); opacity: 1; }
   100% { transform: scale(0.95); opacity: 0.7; }
-}
-
-@keyframes shimmer-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
 }
 
 /* Shimmer loading effect (background-position variant) */
@@ -634,6 +634,64 @@ main {
   outline: 2px solid #f59e0b;
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* ========== NEW: Utility animations ========== */
+
+/* Fade in + slide up (for cards appearing) */
+@keyframes animateInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in-up {
+  animation: animateInUp 0.4s ease-out forwards;
+}
+
+/* Animated gradient text effect (for hero sections) */
+.text-gradient-animated {
+  background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6, #06b6d4, #f59e0b);
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-text-flow 4s linear infinite;
+}
+@keyframes gradient-text-flow {
+  0% { background-position: 0% center; }
+  100% { background-position: 300% center; }
+}
+
+/* Gradient border effect (for highlighted cards) */
+.border-gradient {
+  position: relative;
+  border: none !important;
+}
+.border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444, #8b5cf6);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Shimmer loading skeleton effect */
+.shimmer-loading {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted) / 0.5) 40%,
+    hsl(var(--muted)) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-bg 2s ease-in-out infinite;
+  border-radius: 6px;
 }
 
 @media print {

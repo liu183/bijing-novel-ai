@@ -1,5 +1,41 @@
 import { db } from '@/lib/db';
+import { NextResponse } from 'next/server';
 import { STEPS } from '@/lib/steps-config';
+
+// ---------------------------------------------------------------------------
+// Helper: fetch novel by ID or return 404 response
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch a novel by its ID. Returns the novel record if found, or null.
+ * Used with `getNovelOr404` below for a one-liner pattern in API routes.
+ */
+export async function fetchNovel(novelId: string) {
+  return db.novel.findUnique({ where: { id: novelId } });
+}
+
+/**
+ * Fetch a novel by ID and return a 404 NextResponse if not found.
+ * Usage in route handlers:
+ *   const novel = await getNovelOr404(novelId);
+ *   if (!novel) return novel; // TypeScript narrows to NextResponse
+ *   // ... novel is fully typed here
+ */
+export async function getNovelOr404(novelId: string) {
+  const novel = await fetchNovel(novelId);
+  if (!novel) {
+    return NextResponse.json({ error: '小说不存在' }, { status: 404 }) as unknown as null;
+  }
+  return novel;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: create a standard JSON error response
+// ---------------------------------------------------------------------------
+
+export function errorResponse(message: string, status = 500) {
+  return NextResponse.json({ error: message }, { status });
+}
 
 // ---------------------------------------------------------------------------
 // Helper: emit events to the WebSocket agent-service (port 3003)

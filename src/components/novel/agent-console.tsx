@@ -60,8 +60,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { formatDistanceToNow } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import { AGENT_STATUS_CONFIG } from '@/lib/constants';
+import { formatTimestamp } from '@/lib/format';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -112,36 +112,7 @@ const skillIconMap: Record<string, React.ElementType> = {
   Scroll: MessageSquare,
 };
 
-// ============================================================================
-// Agent status config
-// ============================================================================
 
-const statusConfig: Record<string, { label: string; color: string; dotClass: string; bgColor: string }> = {
-  idle: {
-    label: '待命中',
-    color: 'text-muted-foreground',
-    dotClass: 'bg-muted-foreground/50',
-    bgColor: 'bg-muted/30',
-  },
-  thinking: {
-    label: '思考中',
-    color: 'text-amber-600 dark:text-amber-400',
-    dotClass: 'bg-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-  },
-  working: {
-    label: '执行中',
-    color: 'text-emerald-600 dark:text-emerald-400',
-    dotClass: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-  },
-  done: {
-    label: '已完成',
-    color: 'text-sky-600 dark:text-sky-400',
-    dotClass: 'bg-sky-500',
-    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
-  },
-};
 
 // ============================================================================
 // Helper: get agent color classes
@@ -202,18 +173,7 @@ function getAgentColorClasses(color: string) {
   return map[color] || map['bg-amber-500'];
 }
 
-// ============================================================================
-// Helper: format timestamp
-// ============================================================================
 
-function formatTimestamp(ts: number): string {
-  const now = Date.now();
-  const diff = now - ts;
-  if (diff < 60000) return '刚刚';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
-  return formatDistanceToNow(new Date(ts), { addSuffix: true, locale: zhCN });
-}
 
 // ============================================================================
 // Main Agent Console Component
@@ -251,7 +211,7 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
   const currentAgentDef = activeAgent ? getAgent(activeAgent) : AGENTS[0];
   const agentColors = getAgentColorClasses(currentAgentDef?.color || 'bg-amber-500');
   const currentStatus = activeAgent ? (agentStatus[activeAgent] || 'idle') : 'idle';
-  const statusInfo = statusConfig[currentStatus];
+  const statusInfo = AGENT_STATUS_CONFIG[currentStatus];
   const currentSkills = activeAgent ? getSkillsForAgent(activeAgent) : [];
   const skillCategories = activeAgent ? getCategoriesForAgent(activeAgent) : [];
 
@@ -980,7 +940,7 @@ const AgentHeaderBar = memo(function AgentHeaderBar({
   onClose?: () => void;
   onAgentSwitch: (agentId: AgentRole) => void;
 }) {
-  const statusCfg = statusConfig[currentStatus] || statusConfig.idle;
+  const statusCfg = AGENT_STATUS_CONFIG[currentStatus] || AGENT_STATUS_CONFIG.idle;
 
   return (
     <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 shrink-0">

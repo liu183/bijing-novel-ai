@@ -173,27 +173,27 @@ export function CommandPalette() {
         {/* Reader Shortcuts (only in reader view) */}
         {viewMode === 'reader' && (
           <CommandGroup heading="阅读器快捷键">
-            <CommandItem value="reader-shortcuts" onSelect={() => {}}>
+            <CommandItem value="阅读器快捷键 上一章 previous-chapter" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">上一章</span>
               <CommandShortcut>← / k</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="阅读器快捷键 下一章 next-chapter" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">下一章</span>
               <CommandShortcut>→ / j</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="阅读器快捷键 目录开关 toggle-toc" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">目录开关</span>
               <CommandShortcut>t</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="阅读器快捷键 返回工作台 back-to-workspace" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">返回工作台</span>
               <CommandShortcut>Esc</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="阅读器快捷键 增大字号 font-size-increase" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">增大字号</span>
               <CommandShortcut>+</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="阅读器快捷键 减小字号 font-size-decrease" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">减小字号</span>
               <CommandShortcut>-</CommandShortcut>
             </CommandItem>
@@ -203,19 +203,19 @@ export function CommandPalette() {
         {/* Workspace Shortcuts (only in workspace view) */}
         {viewMode === 'workspace' && (
           <CommandGroup heading="工作台快捷键">
-            <CommandItem value="ws-shortcuts" onSelect={() => {}}>
+            <CommandItem value="工作台快捷键 下一步 next-step" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">下一步</span>
               <CommandShortcut>j / ↓</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="工作台快捷键 上一步 prev-step" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">上一步</span>
               <CommandShortcut>k / ↑</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="工作台快捷键 编辑切换 toggle-edit" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">编辑切换</span>
               <CommandShortcut>e</CommandShortcut>
             </CommandItem>
-            <CommandItem value="" onSelect={() => {}}>
+            <CommandItem value="工作台快捷键 生成步骤 generate-step" onSelect={() => {}}>
               <span className="flex-1 text-xs text-muted-foreground">生成步骤</span>
               <CommandShortcut>g</CommandShortcut>
             </CommandItem>

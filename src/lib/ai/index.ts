@@ -191,11 +191,29 @@ export async function* streamAI(
     headers['NVAPI-KEY'] = apiKey;
   }
 
-  const response = await fetch(`${apiBase}/chat/completions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  // AbortController for timeout (60s — slightly longer than non-streaming 55s)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (fetchError) {
+    clearTimeout(timeoutId);
+    if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+      yield { type: 'error', data: 'AI 流式请求超时 (60s)，请稍后重试' };
+      return;
+    }
+    yield { type: 'error', data: `AI 网络错误: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}` };
+    return;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -212,10 +230,22 @@ export async function* streamAI(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  // Inactivity timeout: if no chunk arrives within 60s, cancel and yield error
+  const STREAM_INACTIVITY_MS = 60_000;
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+  const resetInactivityTimer = () => {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => {
+      reader.cancel().catch(() => {});
+    }, STREAM_INACTIVITY_MS);
+  };
+  resetInactivityTimer();
+
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetInactivityTimer(); // reset on every received chunk
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -243,8 +273,10 @@ export async function* streamAI(
       }
     }
 
+    if (inactivityTimer) clearTimeout(inactivityTimer);
     yield { type: 'done', data: '' };
   } catch (error) {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
     yield {
       type: 'error',
       data: `流式传输错误: ${error instanceof Error ? error.message : '未知错误'}`,

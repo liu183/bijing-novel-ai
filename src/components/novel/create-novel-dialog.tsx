@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback } from 'react';
 import { useAppStore } from '@/store/app-store';
-import { GENRES, STYLES } from '@/lib/constants';
 import {
   Dialog,
   DialogContent,
@@ -13,18 +12,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Sparkles, Loader2, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateNovelForm } from '@/lib/format';
+import { NovelFormFields, type NovelFormState } from './novel-form-fields';
 
 
 
@@ -116,13 +108,7 @@ const TEMPLATES: NovelTemplate[] = [
   },
 ];
 
-interface FormState {
-  title: string;
-  genre: string;
-  style: string;
-  targetWords: string;
-  description: string;
-}
+
 
 export function CreateNovelDialog() {
   const open = useAppStore((s) => s.createDialogOpen);
@@ -134,14 +120,14 @@ export function CreateNovelDialog() {
   const selectedTemplateFromStore = useAppStore((s) => s.selectedTemplate);
   const clearStoreTemplate = useAppStore((s) => s.setSelectedTemplate);
 
-  const [form, setForm] = useState<FormState>({
+  const [form, setForm] = useState<NovelFormState>({
     title: '',
     genre: '都市脑洞',
     style: '爽文',
     targetWords: '50000',
     description: '',
   });
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -329,110 +315,14 @@ export function CreateNovelDialog() {
             )}
           </div>
 
-          {/* Genre and Style row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="novel-genre" className="text-sm font-medium">
-                题材类型
-              </Label>
-              <Select
-                value={form.genre}
-                onValueChange={(value) => { setForm((f) => ({ ...f, genre: value })); setFormError(''); }}
-              >
-                <SelectTrigger id="novel-genre" className="h-10 w-full">
-                  <SelectValue placeholder="选择题材" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GENRES.map((genre) => (
-                    <SelectItem key={genre} value={genre}>
-                      {genre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="novel-style" className="text-sm font-medium">
-                写作风格
-              </Label>
-              <Select
-                value={form.style}
-                onValueChange={(value) => { setForm((f) => ({ ...f, style: value })); setFormError(''); }}
-              >
-                <SelectTrigger id="novel-style" className="h-10 w-full">
-                  <SelectValue placeholder="选择风格" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STYLES.map((style) => (
-                    <SelectItem key={style} value={style}>
-                      {style}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Target Words */}
-          <div className="space-y-2">
-            <Label htmlFor="novel-words" className="text-sm font-medium">
-              目标字数
-            </Label>
-            <div className="relative">
-              <Input
-                id="novel-words"
-                type="number"
-                placeholder="50000"
-                value={form.targetWords}
-                onChange={(e) => { setForm((f) => ({ ...f, targetWords: e.target.value })); setFormError(''); }}
-                onBlur={() => validate()}
-                className="h-10 pr-10"
-                min={1000}
-                max={5000000}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                字
-              </span>
-            </div>
-            {errors.targetWords && (
-              <p className="text-xs text-destructive">{errors.targetWords}</p>
-            )}
-            <div className="flex gap-2">
-              {[30000, 50000, 100000, 200000].map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, targetWords: String(w) }))}
-                  className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
-                    form.targetWords === String(w)
-                      ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                      : 'border-border text-muted-foreground hover:border-amber-300 hover:text-amber-600 dark:hover:border-amber-700 dark:hover:text-amber-400'
-                  }`}
-                >
-                  {(w / 10000)}万
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="novel-desc" className="text-sm font-medium">
-              简介描述
-            </Label>
-            <Textarea
-              id="novel-desc"
-              placeholder="简单描述您的故事构思（选填，创建后可在工作台中通过AI辅助完善）"
-              value={form.description}
-              onChange={(e) => { setForm((f) => ({ ...f, description: e.target.value })); setFormError(''); }}
-              className="min-h-[100px] resize-none"
-              maxLength={500}
-            />
-            <p className="text-xs text-muted-foreground text-right">
-              {form.description.length}/500
-            </p>
-          </div>
+          {/* Shared Form Fields: Genre, Style, Target Words, Description */}
+          <NovelFormFields
+            form={form}
+            setForm={setForm}
+            errors={errors}
+            mode="create"
+            onFieldChange={() => setFormError('')}
+          />
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

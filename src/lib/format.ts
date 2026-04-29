@@ -1,4 +1,44 @@
+import { format, formatDistanceToNow } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
+
 // Shared formatting utilities used across components
+
+/** Format a date string to 'yyyy-MM-dd' */
+export function formatDate(dateStr: string): string {
+  try {
+    return format(new Date(dateStr), 'yyyy-MM-dd', { locale: zhCN });
+  } catch {
+    return dateStr;
+  }
+}
+
+/** Format a date string to 'yyyy-MM-dd HH:mm' */
+export function formatDateTime(dateStr: string): string {
+  try {
+    return format(new Date(dateStr), 'yyyy-MM-dd HH:mm', { locale: zhCN });
+  } catch {
+    return dateStr;
+  }
+}
+
+/** Format a date string as relative time (e.g. "3天前") */
+export function formatRelativeTime(dateStr: string): string {
+  try {
+    return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: zhCN });
+  } catch {
+    return formatDate(dateStr);
+  }
+}
+
+/** Format a timestamp (ms) as relative time, with short-circuit for recent times */
+export function formatTimestamp(ts: number): string {
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+  return formatDistanceToNow(new Date(ts), { addSuffix: true, locale: zhCN });
+}
 
 /** Format a word count for display (e.g. "1.5万字", "3,200字") */
 export function formatWordCount(count: number): string {
