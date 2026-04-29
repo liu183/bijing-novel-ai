@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '@/store/app-store';
 import { getStepConfig, type InputField } from '@/lib/steps-config';
 import {
@@ -37,6 +37,17 @@ export function GenerateStepDialog() {
 
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [tipIndex, setTipIndex] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tipRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const generatingTips = [
+    'AI 正在分析您的创作需求...',
+    '正在构思创意方向...',
+    '正在组织故事结构...',
+    '即将完成，请稍候...',
+  ];
 
   const stepConfig = getStepConfig(stepNumber);
 
@@ -51,12 +62,39 @@ export function GenerateStepDialog() {
       });
       setInputs(defaults);
       setLoading(false);
+      setElapsedTime(0);
+      setTipIndex(0);
     }
   }, [open, stepNumber, stepConfig.inputFields]);
+
+  // Timer and tip rotation during loading
+  useEffect(() => {
+    if (loading) {
+      timerRef.current = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+      tipRef.current = setInterval(() => {
+        setTipIndex(prev => (prev + 1) % generatingTips.length);
+      }, 4000);
+    } else {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (tipRef.current) { clearInterval(tipRef.current); tipRef.current = null; }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (tipRef.current) clearInterval(tipRef.current);
+    };
+  }, [loading, generatingTips.length]);
 
   const handleInputChange = useCallback((key: string, value: string) => {
     setInputs((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`;
+  };
 
   const handleSubmit = async () => {
     if (!currentNovel) return;
@@ -71,6 +109,8 @@ export function GenerateStepDialog() {
     }
 
     setLoading(true);
+    setElapsedTime(0);
+    setTipIndex(0);
     setIsGenerating(true);
 
     try {
@@ -208,6 +248,18 @@ export function GenerateStepDialog() {
           {stepConfig.inputFields.map(renderField)}
         </div>
 
+        {/* Loading progress section */}
+        {loading && (
+          <div className="space-y-3 py-2">
+            <div className="h-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 animate-pulse w-full" />
+            </div>
+            <p className="text-xs text-muted-foreground text-center animate-pulse">
+              {generatingTips[tipIndex]}
+            </p>
+          </div>
+        )}
+
         <DialogFooter className="gap-2">
           <Button
             variant="outline"
@@ -224,7 +276,7 @@ export function GenerateStepDialog() {
             {loading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                AI 生成中...
+                AI 生成中... {formatTime(elapsedTime)}
               </>
             ) : (
               <>

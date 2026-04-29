@@ -21,6 +21,8 @@ import {
   Pencil,
   Search,
   Download,
+  Bot,
+  Settings2,
 } from 'lucide-react';
 import { EditNovelDialog } from './edit-novel-dialog';
 import {
@@ -334,6 +336,45 @@ export function DashboardView() {
           </Button>
         </div>
 
+        {/* Continue Editing Card */}
+        {!loading && novels.length > 0 && (() => {
+          const recentNovel = [...novels].sort((a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0];
+          const completedSteps = (recentNovel.steps || []).filter(
+            s => s.status === 'completed' || s.status === 'locked'
+          ).length;
+          return (
+            <div onClick={() => { setCurrentNovel(recentNovel); setViewMode('workspace'); }}
+              className="relative overflow-hidden rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 p-5 cursor-pointer hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all group mb-6">
+              {/* decorative elements */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-200/30 to-transparent rounded-bl-full" />
+              <div className="relative flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
+                    <BookOpen className="size-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-0.5">继续上次创作</p>
+                    <h3 className="font-semibold text-base">{recentNovel.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      已完成 {completedSteps}/12 步 · {recentNovel.genre} · {recentNovel.style}
+                    </p>
+                  </div>
+                </div>
+                <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700">
+                  继续创作
+                  <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
+                </Button>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-3 h-1 rounded-full bg-amber-100 dark:bg-amber-900/30 overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all" style={{ width: `${Math.round((completedSteps / 12) * 100)}%` }} />
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Search & Filter Bar */}
         {!loading && novels.length > 0 && (
           <div className="space-y-3 mb-6">
@@ -473,6 +514,27 @@ export function DashboardView() {
             </Button>
           </div>
         )}
+      </section>
+
+      {/* Feature Highlights */}
+      <section className="mt-12 mb-8">
+        <h2 className="text-xl font-semibold mb-6 text-center">创作工具</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { icon: Sparkles, title: 'AI 智能生成', desc: '12步引导式创作，AI辅助从灵感到完稿', color: 'from-amber-500 to-orange-500' },
+            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500' },
+            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500' },
+            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500' },
+          ].map((feature) => (
+            <div key={feature.title} className="rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-shadow">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br ${feature.color} mb-3`}>
+                <feature.icon className="size-5 text-white" />
+              </div>
+              <h3 className="font-medium text-sm mb-1">{feature.title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* Edit Novel Dialog */}

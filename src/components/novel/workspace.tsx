@@ -51,14 +51,25 @@ import {
   PanelLeftClose,
   PanelRightClose,
   Trash2,
+  Copy,
+  Clock,
+  Type,
+  HelpCircle,
+  Keyboard,
 } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Icon mapping
 const iconMap: Record<string, React.ElementType> = {
@@ -861,6 +872,37 @@ function StepContentPanel({
             </div>
           </div>
 
+          {/* Keyboard Shortcuts Help */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                <HelpCircle className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" side="bottom" align="end">
+              <div className="flex items-center gap-2 mb-3">
+                <Keyboard className="size-4 text-amber-500" />
+                <h4 className="font-medium text-sm">快捷键</h4>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { keys: 'j / ↓', desc: '下一步' },
+                  { keys: 'k / ↑', desc: '上一步' },
+                  { keys: 'e', desc: '编辑/保存切换' },
+                  { keys: 'g', desc: '生成当前步骤' },
+                  { keys: 'Esc', desc: '退出编辑' },
+                ].map((shortcut) => (
+                  <div key={shortcut.keys} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{shortcut.desc}</span>
+                    <kbd className="inline-flex items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-foreground">
+                      {shortcut.keys}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           {/* Action Buttons */}
           <div className="flex items-center gap-1 shrink-0">
             {hasContent && !editing && !isLocked && (
@@ -930,52 +972,122 @@ function StepContentPanel({
       </div>
 
       {/* Content Area */}
-      <ScrollArea className="flex-1">
-        <div className="px-4 sm:px-6 py-5 max-w-4xl mx-auto">
-          {editing ? (
-            /* Edit Mode */
-            <Textarea
-              value={editContent}
-              onChange={(e) => onEditContentChange(e.target.value)}
-              className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
-              placeholder="在此编辑内容..."
-            />
-          ) : hasContent ? (
-            /* View Mode with Markdown */
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:leading-relaxed prose-li:leading-relaxed prose-strong:text-foreground">
-              <ReactMarkdown>{stepData!.content}</ReactMarkdown>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentStep}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+          className="h-full flex flex-col"
+        >
+          <ScrollArea className="flex-1">
+            <div className="px-4 sm:px-6 py-5 max-w-4xl mx-auto">
+              {editing ? (
+                /* Edit Mode */
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => onEditContentChange(e.target.value)}
+                  className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
+                  placeholder="在此编辑内容..."
+                />
+              ) : hasContent ? (
+                /* View Mode with Markdown */
+                <>
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:leading-relaxed prose-li:leading-relaxed prose-strong:text-foreground">
+                    <ReactMarkdown>{stepData!.content}</ReactMarkdown>
+                  </div>
+                  {/* Word Count / Reading Time / Copy Bar */}
+                  <ContentInfoBar content={stepData!.content} />
+                </>
+              ) : (
+                /* Empty State */
+                <div className="flex flex-col items-center justify-center py-16 px-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 mb-6">
+                    <StepIcon className={`size-10 ${phaseColors.text}`} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{stepConfig.title}</h3>
+                  <p className="text-sm text-muted-foreground max-w-lg text-center leading-relaxed mb-6">
+                    {stepConfig.description}
+                  </p>
+                  <Button
+                    onClick={onGenerate}
+                    disabled={isGenerating}
+                    className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 hover:from-amber-600 hover:to-orange-700 hover:shadow-lg transition-all"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        AI 生成中，请稍候...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="size-4" />
+                        开始生成
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
-          ) : (
-            /* Empty State */
-            <div className="flex flex-col items-center justify-center py-16 px-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 mb-6">
-                <StepIcon className={`size-10 ${phaseColors.text}`} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">{stepConfig.title}</h3>
-              <p className="text-sm text-muted-foreground max-w-lg text-center leading-relaxed mb-6">
-                {stepConfig.description}
-              </p>
-              <Button
-                onClick={onGenerate}
-                disabled={isGenerating}
-                className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 hover:from-amber-600 hover:to-orange-700 hover:shadow-lg transition-all"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    AI 生成中，请稍候...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="size-4" />
-                    开始生成
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+          </ScrollArea>
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ==========================================
+// Content Info Bar (Word Count, Reading Time, Copy)
+// ==========================================
+function ContentInfoBar({ content }: { content: string }) {
+  // Count Chinese characters (non-whitespace, excluding markdown syntax)
+  const cleanText = content
+    .replace(/```[\s\S]*?```/g, '')        // remove code blocks
+    .replace(/`[^`]+`/g, '')                // remove inline code
+    .replace(/#{1,6}\s/g, '')               // remove heading markers
+    .replace(/(\*{1,3}|_{1,3})(.*?)\1/g, '$2') // remove bold/italic markers
+    .replace(/~~(.*?)~~/g, '$1')            // remove strikethrough
+    .replace(/!\[.*?\]\(.*?\)/g, '')        // remove image syntax
+    .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // keep link text, remove url
+    .replace(/>\s/g, '')                     // remove blockquote markers
+    .replace(/[-*+]\s/g, '')                 // remove list markers
+    .replace(/\d+\.\s/g, '')                 // remove numbered list markers
+    .replace(/\s+/g, '');                    // remove all whitespace
+
+  const charCount = cleanText.length;
+  const readingTime = Math.max(1, Math.ceil(charCount / 400));
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success('已复制到剪贴板');
+    } catch {
+      toast.error('复制失败');
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between mt-6 pt-3 border-t border-border/50 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4">
+        <span className="flex items-center gap-1.5">
+          <Type className="size-3.5" />
+          {charCount} 字
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Clock className="size-3.5" />
+          约 {readingTime} 分钟
+        </span>
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleCopy}
+        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <Copy className="size-3.5" />
+        复制
+      </Button>
     </div>
   );
 }
