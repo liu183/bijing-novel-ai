@@ -317,9 +317,9 @@ export function DashboardView() {
       <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-warm-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-stone-950/40">
         {/* Decorative elements */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-amber-200/40 dark:bg-amber-800/20 blur-3xl" />
-          <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-orange-200/40 dark:bg-orange-800/20 blur-3xl" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-32 w-32 rounded-full bg-amber-100/30 dark:bg-amber-900/10 blur-2xl" />
+          <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-amber-200/40 dark:bg-amber-800/20 blur-3xl animate-float-1" />
+          <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-orange-200/40 dark:bg-orange-800/20 blur-3xl animate-float-2" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-32 w-32 rounded-full bg-amber-100/30 dark:bg-amber-900/10 blur-2xl animate-float-3" />
         </div>
 
         <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
@@ -757,7 +757,7 @@ const NovelCard = memo(function NovelCard({
 
   return (
     <Card
-      className="group cursor-pointer py-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60"
+      className="group cursor-pointer py-4 transition-all duration-300 hover:shadow-lg hover:shadow-black/5 hover:shadow-amber-500/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 border-border/60 hover:border-amber-500/20 dark:hover:border-amber-500/20"
       onClick={() => onClick(novel)}
     >
       <CardHeader className="px-5 pb-2">

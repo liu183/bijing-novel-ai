@@ -13,6 +13,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Feather, Moon, Sun, Plus, Bot, Home, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ModelSelector } from './model-selector';
 
 const viewLabels: Record<string, string> = {
@@ -170,11 +171,17 @@ export function Header() {
             className="h-9 w-9 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
             aria-label="切换主题"
           >
-            {mounted && theme === 'dark' ? (
-              <Sun className="size-4 text-amber-400" />
-            ) : (
-              <Moon className="size-4 text-muted-foreground" />
-            )}
+            <AnimatePresence mode="wait">
+              {mounted && theme === 'dark' ? (
+                <motion.div key="sun" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
+                  <Sun className="size-4 text-amber-400" />
+                </motion.div>
+              ) : (
+                <motion.div key="moon" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.2 }}>
+                  <Moon className="size-4 text-muted-foreground" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </Button>
 
           {/* Agent Console Toggle */}

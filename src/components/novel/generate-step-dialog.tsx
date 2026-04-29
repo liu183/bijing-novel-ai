@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function GenerateStepDialog() {
@@ -36,6 +36,7 @@ export function GenerateStepDialog() {
   const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [loading, setLoading] = useState(false);
+  const [genError, setGenError] = useState('');
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [elapsedTime, setElapsedTime] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
@@ -76,6 +77,7 @@ export function GenerateStepDialog() {
       });
       setInputs(defaults);
       setLoading(false);
+      setGenError('');
       setElapsedTime(0);
       setTipIndex(0);
     }
@@ -126,6 +128,7 @@ export function GenerateStepDialog() {
     setLoading(true);
     setElapsedTime(0);
     setTipIndex(0);
+    setGenError('');
     setIsGenerating(true);
 
     try {
@@ -154,7 +157,9 @@ export function GenerateStepDialog() {
       setOpen(false);
     } catch (error) {
       console.error('Failed to generate step:', error);
-      toast.error(error instanceof Error ? error.message : '生成失败，请重试');
+      const msg = error instanceof Error ? error.message : '生成失败，请重试';
+      toast.error(msg);
+      setGenError(msg);
     } finally {
       setLoading(false);
       setIsGenerating(false);
@@ -267,7 +272,14 @@ export function GenerateStepDialog() {
         {loading && (
           <div className="space-y-3 py-2">
             <div className="h-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 animate-pulse w-full" />
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"
+                style={{ 
+                  width: '100%',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer-bg 1.5s infinite linear'
+                }}
+              />
             </div>
             <p className="text-xs text-muted-foreground text-center animate-pulse">
               {generatingTips[tipIndex]}
@@ -300,6 +312,13 @@ export function GenerateStepDialog() {
               </>
             )}
           </Button>
+          {genError && (
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive mt-2">
+              <AlertCircle className="size-3.5 shrink-0" />
+              <span>{genError}</span>
+              <button onClick={() => setGenError('')} className="ml-auto hover:text-destructive/70">×</button>
+            </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -375,6 +375,9 @@ export function BatchChapterDialog({ open, onOpenChange }: BatchChapterDialogPro
                 <p className="text-xs text-muted-foreground text-center">
                   请勿关闭页面，批量生成可能需要较长时间
                 </p>
+                <p className="text-[10px] text-muted-foreground/40 text-center mt-1">
+                  进度为估算值，实际可能有所差异
+                </p>
               </div>
             </motion.div>
           )}

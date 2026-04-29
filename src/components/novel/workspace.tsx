@@ -17,19 +17,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import {
   Lightbulb,
   FileText,
@@ -66,6 +58,7 @@ import {
   Type,
   HelpCircle,
   Keyboard,
+  Check,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -82,7 +75,7 @@ import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BatchChapterDialog } from '@/components/novel/batch-chapter-dialog';
-import { streamSSE, type SSEMessage } from '@/lib/sse-parser';
+import { streamSSE } from '@/lib/sse-parser';
 
 // Icon mapping
 const iconMap: Record<string, React.ElementType> = {
@@ -168,6 +161,8 @@ export function WorkspaceView() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const originalContentRef = useRef<string>('');
+  const handleSaveRef = useRef<() => void>(() => {});
+  const [autoSaveIndicator, setAutoSaveIndicator] = useState(false);
 
   // Dirty state: true when editing and content has changed
   const isDirty = editing && editContent !== originalContentRef.current;
@@ -282,8 +277,9 @@ export function WorkspaceView() {
 
   // Handle save
   const handleSave = async () => {
-    if (!currentNovel) return;
+    if (!currentNovel || !editing || !editContent) return;
     setSaving(true);
+    handleSaveRef.current = handleSave;
     try {
       const res = await fetch(`/api/novels/${currentNovel.id}/steps`, {
         method: 'POST',
@@ -484,6 +480,18 @@ export function WorkspaceView() {
       // Don't navigate when typing in inputs/textareas
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        // Allow Ctrl+S/Cmd+S in textarea
+        if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (editing && editContent) handleSaveRef.current();
+          return;
+        }
+        return;
+      }
+      // Ctrl+S / Cmd+S global save
+      if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (editing && editContent) handleSaveRef.current();
         return;
       }
       // '?' or 'h' opens shortcuts help
@@ -519,6 +527,17 @@ export function WorkspaceView() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentNovel, currentStep, setCurrentStep]);
+
+  // Debounced auto-save when editing step content
+  useEffect(() => {
+    if (!editing || !editContent || editContent === originalContentRef.current) return;
+    const timer = setTimeout(() => {
+      setAutoSaveIndicator(true);
+      handleSaveRef.current();
+      setTimeout(() => setAutoSaveIndicator(false), 1500);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [editContent, editing]);
 
   // Handle chat keydown (Ctrl+Enter to send)
   const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -619,6 +638,7 @@ export function WorkspaceView() {
               onGenerate={() => handleGenerateStep()}
               onConfirm={handleConfirmStep}
               onUnlock={handleUnlockStep}
+              autoSaveIndicator={autoSaveIndicator}
             />
           </ResizablePanel>
 
@@ -669,6 +689,9 @@ export function WorkspaceView() {
             {mobileTab === 'steps' ? (
               <motion.div
                 key="mobile-steps"
+                role="tabpanel"
+                id="panel-steps"
+                aria-labelledby="tab-steps"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -20, opacity: 0 }}
@@ -689,6 +712,9 @@ export function WorkspaceView() {
             ) : mobileTab === 'content' ? (
               <motion.div
                 key="mobile-content"
+                role="tabpanel"
+                id="panel-content"
+                aria-labelledby="tab-content"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -713,11 +739,15 @@ export function WorkspaceView() {
                   onGenerate={() => handleGenerateStep()}
                   onConfirm={handleConfirmStep}
                   onUnlock={handleUnlockStep}
+                  autoSaveIndicator={autoSaveIndicator}
                 />
               </motion.div>
             ) : (
               <motion.div
                 key="mobile-chat"
+                role="tabpanel"
+                id="panel-chat"
+                aria-labelledby="tab-chat"
                 initial={{ x: 20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 20, opacity: 0 }}
@@ -742,8 +772,12 @@ export function WorkspaceView() {
         </div>
 
         {/* Mobile tab bar */}
-        <div className="flex border-t bg-background shrink-0">
+        <div role="tablist" className="flex border-t bg-background shrink-0">
           <button
+            role="tab"
+            id="tab-steps"
+            aria-selected={mobileTab === 'steps'}
+            aria-controls="panel-steps"
             onClick={() => setMobileTab('steps')}
             className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors ${
               mobileTab === 'steps'
@@ -755,6 +789,10 @@ export function WorkspaceView() {
             步骤
           </button>
           <button
+            role="tab"
+            id="tab-content"
+            aria-selected={mobileTab === 'content'}
+            aria-controls="panel-content"
             onClick={() => setMobileTab('content')}
             className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors ${
               mobileTab === 'content'
@@ -766,6 +804,10 @@ export function WorkspaceView() {
             内容
           </button>
           <button
+            role="tab"
+            id="tab-chat"
+            aria-selected={mobileTab === 'chat'}
+            aria-controls="panel-chat"
             onClick={() => setMobileTab('chat')}
             className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors relative ${
               mobileTab === 'chat'
@@ -1048,6 +1090,7 @@ function StepContentPanel({
   onGenerate: () => void;
   onConfirm: () => void;
   onUnlock: () => void;
+  autoSaveIndicator?: boolean;
 }) {
   const hasContent = stepData?.content && stepData.content.trim().length > 0;
   const isLocked = stepData?.status === 'locked';
@@ -1075,9 +1118,14 @@ function StepContentPanel({
                     已锁定
                   </Badge>
                 )}
-                {isDirty && (
+                {isDirty && !autoSaveIndicator && (
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border-0 animate-pulse">
                     ● 未保存
+                  </Badge>
+                )}
+                {autoSaveIndicator && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 border-0">
+                    自动保存
                   </Badge>
                 )}
               </div>
@@ -1254,6 +1302,7 @@ function StepContentPanel({
 // Content Info Bar (Word Count, Reading Time, Copy)
 // ==========================================
 function ContentInfoBar({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
   // Count Chinese characters (non-whitespace, excluding markdown syntax)
   const cleanText = content
     .replace(/```[\s\S]*?```/g, '')        // remove code blocks
@@ -1274,7 +1323,8 @@ function ContentInfoBar({ content }: { content: string }) {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
-      toast.success('已复制到剪贴板');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('复制失败');
     }
@@ -1298,8 +1348,12 @@ function ContentInfoBar({ content }: { content: string }) {
         onClick={handleCopy}
         className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
-        <Copy className="size-3.5" />
-        复制
+        {copied ? (
+          <Check className="size-3.5 text-emerald-500" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+        {copied ? '已复制' : '复制'}
       </Button>
     </div>
   );
@@ -1495,7 +1549,12 @@ function ChatPanel({
             <Send className="size-4" />
           </Button>
         </div>
-        <p className="text-[10px] text-muted-foreground/60 mt-1.5 text-center">
+        <div className="px-3 pb-1 text-right">
+          <span className="text-[10px] text-muted-foreground/40">
+            {chatInput.length} 字
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground/60 text-center">
           按 Enter 发送，Shift+Enter 换行
         </p>
       </div>

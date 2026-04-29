@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useAppStore } from '@/store/app-store';
+import { GENRES, STYLES } from '@/lib/constants';
 import {
   Dialog,
   DialogContent,
@@ -21,11 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Loader2, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
-const GENRES = ['都市脑洞', '玄幻脑洞', '悬疑脑洞', '科幻', '末世', '年代重生', '言情', '其他'];
-const STYLES = ['爽文', '严肃', '幽默', '黑暗', '温馨'];
+
 
 interface NovelTemplate {
   id: string;
@@ -139,6 +139,7 @@ export function CreateNovelDialog() {
     description: '',
   });
   const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [templatesExpanded, setTemplatesExpanded] = useState(true);
@@ -155,6 +156,7 @@ export function CreateNovelDialog() {
         description: '',
       });
       setErrors({});
+      setFormError('');
       setSelectedTemplate(null);
       setTemplatesExpanded(true);
     }
@@ -229,7 +231,9 @@ export function CreateNovelDialog() {
       setCurrentStep(1);
       setOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '创建失败，请重试');
+      const msg = error instanceof Error ? error.message : '创建失败，请重试';
+      toast.error(msg);
+      setFormError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -321,7 +325,7 @@ export function CreateNovelDialog() {
               id="novel-title"
               placeholder="例如：重生之都市传说"
               value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              onChange={(e) => { setForm((f) => ({ ...f, title: e.target.value })); setFormError(''); }}
               onBlur={() => validate()}
               className="h-10"
               maxLength={50}
@@ -339,7 +343,7 @@ export function CreateNovelDialog() {
               </Label>
               <Select
                 value={form.genre}
-                onValueChange={(value) => setForm((f) => ({ ...f, genre: value }))}
+                onValueChange={(value) => { setForm((f) => ({ ...f, genre: value })); setFormError(''); }}
               >
                 <SelectTrigger id="novel-genre" className="h-10 w-full">
                   <SelectValue placeholder="选择题材" />
@@ -360,7 +364,7 @@ export function CreateNovelDialog() {
               </Label>
               <Select
                 value={form.style}
-                onValueChange={(value) => setForm((f) => ({ ...f, style: value }))}
+                onValueChange={(value) => { setForm((f) => ({ ...f, style: value })); setFormError(''); }}
               >
                 <SelectTrigger id="novel-style" className="h-10 w-full">
                   <SelectValue placeholder="选择风格" />
@@ -387,7 +391,7 @@ export function CreateNovelDialog() {
                 type="number"
                 placeholder="50000"
                 value={form.targetWords}
-                onChange={(e) => setForm((f) => ({ ...f, targetWords: e.target.value }))}
+                onChange={(e) => { setForm((f) => ({ ...f, targetWords: e.target.value })); setFormError(''); }}
                 onBlur={() => validate()}
                 className="h-10 pr-10"
                 min={1000}
@@ -427,7 +431,7 @@ export function CreateNovelDialog() {
               id="novel-desc"
               placeholder="简单描述您的故事构思（选填，创建后可在工作台中通过AI辅助完善）"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(e) => { setForm((f) => ({ ...f, description: e.target.value })); setFormError(''); }}
               className="min-h-[100px] resize-none"
               maxLength={500}
             />
@@ -462,6 +466,12 @@ export function CreateNovelDialog() {
               </>
             )}
           </Button>
+          {formError && (
+            <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+              <AlertCircle className="size-3" />
+              {formError}
+            </p>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -364,6 +364,10 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
 
     const message = inputText.trim();
     setInputText('');
+    // Reset textarea height after sending
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     setIsSending(true);
 
     // Add user message to activity log
@@ -824,7 +828,11 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
           <Textarea
             ref={inputRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => {
+              setInputText(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
+            }}
             onKeyDown={handleKeyDown}
             placeholder={`向 ${currentAgentDef.name} 发送消息...`}
             className="min-h-[40px] max-h-[140px] resize-none text-sm leading-relaxed"

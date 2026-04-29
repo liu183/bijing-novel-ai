@@ -1,3 +1,7 @@
+export const GENRES = ['都市脑洞', '玄幻奇幻', '仙侠武侠', '科幻末世', '古代言情', '现代言情', '悬疑推理', '历史军事', '游戏竞技', '灵异恐怖', '校园青春', '其他'] as const;
+
+export const STYLES = ['爽文', '虐文', '甜宠', '搞笑', '正剧', '文艺', '其他'] as const;
+
 export const TOTAL_STEPS = 12;
 
 export const genreColors: Record<string, string> = {

@@ -148,6 +148,7 @@ export function ReaderView() {
   const [streamMode, setStreamMode] = useState(false);
   const [streamContent, setStreamContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [chapterLoading, setChapterLoading] = useState(false);
   const streamEndRef = useRef<HTMLDivElement>(null);
   const updatePref = useCallback(<K extends keyof ReaderPrefs>(key: K, value: ReaderPrefs[K]) => {
     setReaderPrefs((prev) => {
@@ -344,6 +345,14 @@ export function ReaderView() {
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [streamContent]);
+
+  // Chapter loading skeleton effect
+  useEffect(() => {
+    if (chapters.length === 0) return;
+    setChapterLoading(true);
+    const timer = setTimeout(() => setChapterLoading(false), 300);
+    return () => clearTimeout(timer);
+  }, [currentChapterIndex, chapters.length]);
 
   // Navigation
   const goToPrevChapter = useCallback(() => {
@@ -703,6 +712,7 @@ export function ReaderView() {
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-xs text-muted-foreground hover:text-foreground h-8"
+                aria-label="阅读设置"
               >
                 <Settings className="size-3.5" />
                 阅读设置
@@ -834,7 +844,17 @@ export function ReaderView() {
           />
         </div>
         <div ref={readingAreaRef} className="mx-auto max-w-[720px] px-5 sm:px-8 py-10 sm:py-16 overflow-y-auto max-h-[calc(100vh-14rem)]">
-          {currentChapter ? (
+          {chapterLoading ? (
+            <div className="space-y-4 py-8 animate-pulse">
+              <Skeleton className="h-8 w-3/5 mx-auto" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-11/12" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-9/12" />
+            </div>
+          ) : currentChapter ? (
             <article key={contentKey} className="animate-in fade-in duration-300">
               {/* Chapter Header */}
               <header className="mb-10 text-center">
@@ -868,6 +888,7 @@ export function ReaderView() {
                         className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => { setEditTitleValue(currentChapter?.title || ''); setEditingTitle(true); }}
                         title="编辑标题"
+                        aria-label="编辑标题"
                       >
                         <Pencil className="size-3.5" />
                       </Button>
@@ -876,6 +897,7 @@ export function ReaderView() {
                         className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
                         onClick={handleEnterContentEdit}
                         title="编辑内容"
+                        aria-label="编辑内容"
                       >
                         <Pencil className="size-3.5" />
                         <span className="text-[8px] font-bold absolute">A</span>
@@ -885,6 +907,7 @@ export function ReaderView() {
                           <Button
                             size="icon" variant="ghost"
                             className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600"
+                            aria-label="删除章节"
                           >
                             <Trash2 className="size-3.5" />
                           </Button>
@@ -985,6 +1008,7 @@ export function ReaderView() {
                     variant="outline"
                     onClick={goToPrevChapter}
                     disabled={isFirstChapter}
+                    aria-label="上一章"
                     className="gap-2 flex-1 h-10 max-w-[180px] mx-auto sm:mx-0 border-border/60 hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-30"
                   >
                     <ChevronLeft className="size-4" />
@@ -997,6 +1021,7 @@ export function ReaderView() {
                     variant="outline"
                     onClick={goToNextChapter}
                     disabled={isLastChapter}
+                    aria-label="下一章"
                     className="gap-2 flex-1 h-10 max-w-[180px] mx-auto sm:mx-0 border-border/60 hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-30"
                   >
                     下一章

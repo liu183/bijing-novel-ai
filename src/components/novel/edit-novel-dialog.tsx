@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { type NovelData } from '@/store/app-store';
+import { GENRES, STYLES } from '@/lib/constants';
 import {
   Dialog,
   DialogContent,
@@ -24,22 +25,6 @@ import {
 import { Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const GENRES = [
-  '都市脑洞',
-  '玄幻奇幻',
-  '仙侠武侠',
-  '科幻末世',
-  '古代言情',
-  '现代言情',
-  '悬疑推理',
-  '历史军事',
-  '游戏竞技',
-  '灵异恐怖',
-  '校园青春',
-  '其他',
-];
-
-const STYLES = ['爽文', '虐文', '甜宠', '搞笑', '正剧', '文艺', '其他'];
 
 interface FormState {
   _novelId?: string;

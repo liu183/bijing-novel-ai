@@ -17,6 +17,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { TOTAL_STEPS, genreChartColors } from '@/lib/constants';
 
 
@@ -90,7 +91,13 @@ export function StatsChart({ novels }: StatsChartProps) {
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Chart 1: Steps Progress */}
             <div className="rounded-xl border border-border/60 bg-card p-5">
               <h3 className="text-sm font-semibold mb-4 flex items-center gap-1.5">
@@ -203,7 +210,8 @@ export function StatsChart({ novels }: StatsChartProps) {
                 </span>
               </div>
             </div>
-          </div>
+            </div>
+          </motion.div>
         </CollapsibleContent>
       </Collapsible>
     </section>

@@ -12,6 +12,7 @@ import {
   CommandList,
   CommandShortcut,
 } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
 import {
   LayoutDashboard,
   PenTool,
@@ -59,6 +60,7 @@ export function CommandPalette() {
   const setViewMode = useAppStore((s) => s.setViewMode);
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
+  const novels = useAppStore((s) => s.novels);
   const currentStep = useAppStore((s) => s.currentStep);
   const setCurrentStep = useAppStore((s) => s.setCurrentStep);
 
@@ -119,6 +121,27 @@ export function CommandPalette() {
       <CommandInput placeholder="输入命令或搜索..." />
       <CommandList>
         <CommandEmpty>未找到匹配的结果</CommandEmpty>
+
+        {/* Novels */}
+        {novels.length > 0 && (
+          <CommandGroup heading="小说项目">
+            {novels.slice(0, 8).map((novel) => (
+              <CommandItem
+                key={novel.id}
+                value={`novel ${novel.title} ${novel.genre}`}
+                onSelect={() => {
+                  useAppStore.getState().setCurrentNovel(novel);
+                  useAppStore.getState().setViewMode('workspace');
+                  setOpen(false);
+                }}
+              >
+                <BookOpen className="mr-2 size-4" />
+                <span>{novel.title}</span>
+                <Badge variant="outline" className="ml-auto text-[10px]">{novel.genre}</Badge>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {/* Navigation */}
         <CommandGroup heading="导航">
