@@ -35,9 +35,18 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    const allowedFields = ['title', 'genre', 'subgenre', 'style', 'description', 'targetWords', 'status', 'currentStep'];
+    const updateData: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updateData[field] = body[field];
+      }
+    }
+    updateData.updatedAt = new Date();
+
     const novel = await db.novel.update({
       where: { id },
-      data: body,
+      data: updateData,
     });
 
     return NextResponse.json(novel);

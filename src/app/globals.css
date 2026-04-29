@@ -202,6 +202,27 @@
 .animate-breathe { animation: breathe 3s ease-in-out infinite; }
 .animate-avatar-glow { animation: avatar-glow 2s ease-in-out infinite; }
 
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-float-1,
@@ -214,4 +235,31 @@
   .animate-gradient {
     animation: none !important;
   }
+}
+
+/* Card hover effect */
+.card-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: oklch(1 0 0 / 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Text selection */
+::selection {
+  background: oklch(0.85 0.15 85);
+  color: oklch(0.25 0.05 50);
+}
+
+.dark ::selection {
+  background: oklch(0.45 0.15 65);
+  color: oklch(0.95 0.02 85);
 }

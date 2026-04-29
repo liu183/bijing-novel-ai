@@ -403,9 +403,10 @@ export function DashboardView() {
                     </p>
                   </div>
                 </div>
-                <Button className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700">
-                  继续创作
-                  <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
+                <Button className="relative gap-2 overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-600 hover:to-orange-700">
+                  <ArrowRight className="size-4 relative z-10 group-hover:translate-x-0.5 transition-transform" />
+                  <span className="relative z-10">继续创作</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0" style={{ animation: 'shimmer-slide 3s infinite' }} />
                 </Button>
               </div>
               {/* Progress bar */}
@@ -562,18 +563,23 @@ export function DashboardView() {
       <footer className="mt-12 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
                 <Sparkles className="size-4 text-white" />
               </div>
               <span className="font-semibold text-sm">笔境 AI</span>
-              <span className="text-xs text-muted-foreground">v1.0</span>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0">
+                v1.0
+              </Badge>
             </div>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>智能网文创作平台</span>
-              <span>·</span>
-              <span>Powered by GLM & NVIDIA</span>
-              <span>·</span>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Sparkles className="size-3 text-amber-500" />
+                AI 驱动
+              </span>
+              <span className="text-border">|</span>
+              <span>Powered by GLM &amp; NVIDIA</span>
+              <span className="text-border">|</span>
               <span>&copy; 2026 笔境 AI</span>
             </div>
           </div>
@@ -582,19 +588,26 @@ export function DashboardView() {
 
       {/* Feature Highlights */}
       <section className="mt-12 mb-8">
-        <h2 className="text-xl font-semibold mb-6 text-center">创作工具</h2>
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-bold tracking-tight">创作工具</h2>
+          <p className="text-sm text-muted-foreground mt-1">强大的 AI 工具链，覆盖网文创作全流程</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { icon: Sparkles, title: 'AI 智能生成', desc: '12步引导式创作，AI辅助从灵感到完稿', color: 'from-amber-500 to-orange-500' },
-            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500' },
-            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500' },
-            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500' },
-          ].map((feature) => (
-            <div key={feature.title} className="rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-shadow">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br ${feature.color} mb-3`}>
+            { icon: Sparkles, title: 'AI 智能生成', desc: '12步引导式创作，AI辅助从灵感到完稿', color: 'from-amber-500 to-orange-500', shadowColor: 'shadow-amber-500/20' },
+            { icon: Bot, title: '多Agent协作', desc: '6位专业Agent协同工作，覆盖创作全流程', color: 'from-blue-500 to-indigo-500', shadowColor: 'shadow-blue-500/20' },
+            { icon: BookOpen, title: '章节自动生成', desc: '一键生成小说章节，支持连续创作', color: 'from-emerald-500 to-teal-500', shadowColor: 'shadow-emerald-500/20' },
+            { icon: Settings2, title: '33款大模型', desc: '支持GLM、NVIDIA等主流模型自由切换', color: 'from-violet-500 to-purple-500', shadowColor: 'shadow-violet-500/20' },
+          ].map((feature, index) => (
+            <div 
+              key={feature.title} 
+              className="group relative rounded-xl border border-border/60 bg-card p-5 hover:shadow-lg transition-all duration-300 cursor-default"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <div className={`flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br ${feature.color} mb-3 shadow-md ${feature.shadowColor} transition-transform duration-300 group-hover:scale-110`}>
                 <feature.icon className="size-5 text-white" />
               </div>
-              <h3 className="font-medium text-sm mb-1">{feature.title}</h3>
+              <h3 className="font-semibold text-sm mb-1.5 group-hover:text-foreground transition-colors">{feature.title}</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
             </div>
           ))}

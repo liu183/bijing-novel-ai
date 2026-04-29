@@ -19,6 +19,42 @@ export async function GET(
   }
 }
 
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { stepNumber, content, title, status } = body;
+
+    if (!stepNumber) {
+      return NextResponse.json({ error: 'stepNumber is required' }, { status: 400 });
+    }
+
+    const step = await db.novelStep.upsert({
+      where: { novelId_stepNumber: { novelId: id, stepNumber } },
+      create: {
+        novelId: id,
+        stepNumber,
+        title: title || `Step ${stepNumber}`,
+        content: content || '',
+        status: status || 'pending',
+      },
+      update: {
+        ...(content !== undefined && { content }),
+        ...(title !== undefined && { title }),
+        ...(status !== undefined && { status }),
+      },
+    });
+
+    return NextResponse.json(step);
+  } catch (error) {
+    console.error('Failed to update step:', error);
+    return NextResponse.json({ error: 'Failed to update step' }, { status: 500 });
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

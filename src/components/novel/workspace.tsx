@@ -1,6 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAppStore, type StepData } from '@/store/app-store';
 import { STEPS, PHASES, getStepConfig, getPhaseForStep } from '@/lib/steps-config';
 import { Button } from '@/components/ui/button';
@@ -143,6 +153,7 @@ export function WorkspaceView() {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [mobileTab, setMobileTab] = useState<'steps' | 'content' | 'chat'>('content');
   const [stepSidebarOpen, setStepSidebarOpen] = useState(false);
@@ -152,6 +163,7 @@ export function WorkspaceView() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const originalContentRef = useRef<string>('');
 
   // Fetch novel data with steps when entering workspace
   useEffect(() => {
@@ -177,7 +189,7 @@ export function WorkspaceView() {
       }
     };
     fetchNovelData();
-  }, [currentNovel?.id]);
+  }, [currentNovel?.id, setCurrentNovel, setChatMessages, setCurrentStep]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -216,12 +228,20 @@ export function WorkspaceView() {
   // Handle edit toggle
   const handleEditToggle = () => {
     if (editing) {
+      // Check if there are unsaved changes
+      if (editContent !== originalContentRef.current) {
+        setDiscardDialogOpen(true);
+        return;
+      }
       setEditing(false);
     } else {
+      originalContentRef.current = currentStepData?.content || '';
       setEditContent(currentStepData?.content || '');
       setEditing(true);
     }
   };
+
+  const stepContent = currentStepData?.content || '';
 
   // Handle save
   const handleSave = async () => {
@@ -348,46 +368,90 @@ export function WorkspaceView() {
     }
   };
 
-  // Handle send chat
-  const handleSendChat = async () => {
-    if (!currentNovel || !chatInput.trim() || isChatLoading) return;
-
-    const message = chatInput.trim();
+  // Handle send chat (streaming)
+  const handleSendChat = useCallback(async () => {
+    if (!chatInput.trim() || !currentNovel) return;
+    const userMsg = chatInput.trim();
     setChatInput('');
-
-    // Add user message immediately
-    addChatMessage({
-      role: 'user',
-      content: message,
-      createdAt: new Date().toISOString(),
-    });
-
     setIsChatLoading(true);
+
+    const userMessage = {
+      id: `temp-${Date.now()}`,
+      role: 'user' as const,
+      content: userMsg,
+      createdAt: new Date().toISOString(),
+    };
+    addChatMessage(userMessage);
+
+    const assistantId = `stream-${Date.now()}`;
+    const assistantMessage = {
+      id: assistantId,
+      role: 'assistant' as const,
+      content: '',
+      createdAt: new Date().toISOString(),
+    };
+    addChatMessage(assistantMessage);
+
     try {
-      const res = await fetch(`/api/novels/${currentNovel.id}/chat`, {
+      const response = await fetch(`/api/novels/${currentNovel.id}/chat-stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, model: selectedModel }),
+        body: JSON.stringify({
+          message: userMsg,
+          model: selectedModel || undefined,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '对话失败');
 
-      addChatMessage({
-        role: 'assistant',
-        content: data.response,
-        createdAt: new Date().toISOString(),
-      });
+      if (!response.ok) {
+        throw new Error('Chat request failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const jsonStr = trimmed.slice(6);
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.type === 'content') {
+              fullContent += parsed.data;
+              // Update the assistant message in store
+              const msgs = useAppStore.getState().chatMessages.map((m) =>
+                m.id === assistantId ? { ...m, content: fullContent } : m
+              );
+              useAppStore.getState().setChatMessages(msgs);
+            } else if (parsed.type === 'error') {
+              toast.error(parsed.data || 'AI 回复出错');
+            }
+          } catch {
+            // Skip malformed JSON
+          }
+        }
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '对话失败');
-      addChatMessage({
-        role: 'assistant',
-        content: '抱歉，对话出现错误，请稍后重试。',
-        createdAt: new Date().toISOString(),
-      });
+      console.error('Chat stream error:', error);
+      // Remove the empty assistant message on error
+      const msgs = useAppStore.getState().chatMessages.filter((m) => m.id !== assistantId);
+      useAppStore.getState().setChatMessages(msgs);
+      toast.error('AI 回复失败，请重试');
     } finally {
       setIsChatLoading(false);
     }
-  };
+  }, [chatInput, currentNovel, selectedModel, addChatMessage]);
 
   // Clear chat messages
   const clearChatMessages = useCallback(() => {
@@ -404,6 +468,18 @@ export function WorkspaceView() {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
+      }
+      if (e.key === 'e' || e.key === 'E') {
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          handleEditToggle();
+        }
+      }
+      if (e.key === 'g' || e.key === 'G') {
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          handleGenerateStep();
+        }
       }
       if (e.key === 'j' || e.key === 'ArrowDown') {
         e.preventDefault();
@@ -650,6 +726,24 @@ export function WorkspaceView() {
           </button>
         </div>
       </div>
+
+      {/* Discard Changes Confirmation Dialog */}
+      <AlertDialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>放弃修改？</AlertDialogTitle>
+            <AlertDialogDescription>
+              您有未保存的修改内容。确定要放弃这些修改吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>继续编辑</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setEditing(false); setDiscardDialogOpen(false); }}>
+              放弃修改
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -267,6 +267,12 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
       timestamp: Date.now(),
     });
 
+    // Cap agentActivities to max 100 entries
+    const activities = useAppStore.getState().agentActivities;
+    if (activities.length >= 100) {
+      useAppStore.getState().setAgentActivities(activities.slice(-80));
+    }
+
     // Set agent status to thinking
     setAgentStatus(currentAgentDef.id, 'thinking');
 
@@ -354,6 +360,13 @@ export function AgentConsole({ novelId, onClose }: AgentConsoleProps) {
 
       // Set agent status to done
       setAgentStatus(currentAgentDef.id, 'done');
+      // Auto-reset to idle after 3 seconds
+      setTimeout(() => {
+        const current = useAppStore.getState().agentStatus[currentAgentDef.id];
+        if (current === 'done') {
+          useAppStore.getState().setAgentStatus(currentAgentDef.id, 'idle');
+        }
+      }, 3000);
     } catch (error) {
       // Remove the optimistic thinking bubble
       setAgentActivities(useAppStore.getState().agentActivities.filter(a => a.id !== thinkingId));

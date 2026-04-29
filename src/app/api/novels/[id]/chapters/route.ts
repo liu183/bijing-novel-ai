@@ -5,6 +5,23 @@ import { createAIService } from '@/lib/ai';
 // Vercel Serverless Function 最大执行时间（秒）
 export const maxDuration = 60;
 
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const chapters = await db.chapter.findMany({
+      where: { novelId: id },
+      orderBy: { number: 'asc' },
+    });
+    return NextResponse.json(chapters);
+  } catch (error) {
+    console.error('Failed to fetch chapters:', error);
+    return NextResponse.json({ error: 'Failed to fetch chapters' }, { status: 500 });
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
