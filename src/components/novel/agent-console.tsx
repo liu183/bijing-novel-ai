@@ -59,6 +59,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { AGENT_STATUS_CONFIG } from '@/lib/constants';
 import { formatTimestamp } from '@/lib/format';

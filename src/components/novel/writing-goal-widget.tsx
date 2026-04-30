@@ -16,13 +16,13 @@ export function WritingGoalWidget() {
   // Compute today's words from actual chapter data
   const todayWords = useMemo(() => {
     if (!currentNovel?.chapters) return 0;
-    return currentNovel.chapters
+    return currentNovel?.chapters
       .filter(ch => {
         const chapterDate = new Date(Math.max(ch.createdAt, ch.updatedAt || ch.createdAt)).toDateString();
         return chapterDate === today;
       })
       .reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
-  }, [currentNovel?.chapters, today]);
+  }, [currentNovel, today]);
 
   // Compute weekly progress for chart (last 7 days)
   const weeklyData = useMemo(() => {
@@ -42,7 +42,7 @@ export function WritingGoalWidget() {
       days.push({ label: dayLabel, words: dayWords });
     }
     return days;
-  }, [currentNovel?.chapters]);
+  }, [currentNovel]);
 
   const maxWeekly = Math.max(...weeklyData.map(d => d.words), dailyGoal, 1);
 

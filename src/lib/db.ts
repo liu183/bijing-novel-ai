@@ -30,6 +30,14 @@ function isPostgresUrl(url: string): boolean {
 // 导出单例
 // ---------------------------------------------------------------------------
 
+// Override DATABASE_URL for local dev if it points to the wrong file
+if (!process.env.VERCEL) {
+  const url = process.env.DATABASE_URL || '';
+  if (url.includes('custom.db')) {
+    process.env.DATABASE_URL = 'file:/home/z/my-project/bijing-novel-ai/db/bijing.db';
+  }
+}
+
 export const db: PrismaClient =
   globalForPrisma.prisma ??
   new PrismaClient({

@@ -41,6 +41,8 @@ import {
   Circle,
   Timer,
   MessageSquare,
+  MessageCircle,
+  Layers,
   PanelLeftClose,
   PanelRightClose,
   Trash2,
